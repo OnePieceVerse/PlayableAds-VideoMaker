@@ -1,0 +1,753 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { useDropzone } from "react-dropzone";
+
+interface BannerUploadProps {
+  formData: any;
+  updateFormData: (field: string, value: any) => void;
+  nextStep: () => void;
+  prevStep: () => void;
+}
+
+const BannerUpload: React.FC<BannerUploadProps> = ({
+  formData,
+  updateFormData,
+  nextStep,
+  prevStep,
+}) => {
+  const [uploading, setUploading] = useState<"left" | "right" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLandscape, setIsLandscape] = useState(true); // 默认为横屏模式，因为Banner是为横屏设计的
+  const [videoIsLandscape, setVideoIsLandscape] = useState(false); // 视频本身的宽高比
+  const [isDraggingSlider, setIsDraggingSlider] = useState(false); // 添加是否正在拖动滑块的状态
+  const [isDraggingBanner, setIsDraggingBanner] = useState(false); // 是否正在拖动 Banner
+  const [draggingBannerType, setDraggingBannerType] = useState<"left" | "right" | null>(null); // 正在拖动的 Banner 类型
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // 当组件加载时，根据视频方向设置横竖屏状态
+  useEffect(() => {
+    // Banner页面默认使用横屏模式，但仍然检查视频原始宽高
+    if (formData.video && formData.video.metadata) {
+      const { width, height } = formData.video.metadata;
+      if (width && height) {
+        // 设置视频本身的宽高比状态
+        setVideoIsLandscape(width > height);
+        // 即使视频是竖屏，我们也使用横屏模式，因为Banner是为横屏设计的
+        setIsLandscape(true);
+      }
+    }
+  }, [formData.video]);
+
+  // Check if we have a video
+  if (!formData.video) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-500">Please upload a video first</p>
+        <button
+          onClick={prevStep}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  const onDropLeft = async (acceptedFiles: File[]) => {
+    await handleDrop(acceptedFiles, "left");
+  };
+
+  const onDropRight = async (acceptedFiles: File[]) => {
+    await handleDrop(acceptedFiles, "right");
+  };
+
+  const handleDrop = async (acceptedFiles: File[], position: "left" | "right") => {
+    if (acceptedFiles.length === 0) return;
+
+    const file = acceptedFiles[0];
+    
+    // Check if file is an image
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload an image file");
+      return;
+    }
+
+    try {
+      setError(null);
+      setUploading(position);
+
+      // Create form data for upload
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      uploadData.append("type", "image");
+      uploadData.append("step", "banner");
+      uploadData.append("position", position);
+
+      // Upload to backend API
+      const response = await fetch("http://localhost:8080/api/upload", {
+        method: "POST",
+        body: uploadData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to upload ${position} banner`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || `Failed to upload ${position} banner`);
+      }
+
+      // Update form data
+      updateFormData("banners", {
+        ...formData.banners,
+        [position]: {
+          id: data.file_id,
+          url: `http://localhost:8080${data.url}`,
+          position: position === "left" 
+            ? (videoIsLandscape ? { left: 0, top: 50 } : { left: 0, top: 0 })
+            : (videoIsLandscape ? { left: 83.33, top: 50 } : { left: 50, top: 83.33 }),
+          scale: 1
+        },
+      });
+
+      setUploading(null);
+    } catch (err: any) {
+      setError(err.message || "An error occurred during upload");
+      setUploading(null);
+    }
+  };
+
+  const { getRootProps: getLeftRootProps, getInputProps: getLeftInputProps, isDragActive: isLeftDragActive } = useDropzone({
+    onDrop: onDropLeft,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+    },
+    disabled: uploading !== null,
+    maxFiles: 1,
+  });
+
+  const { getRootProps: getRightRootProps, getInputProps: getRightInputProps, isDragActive: isRightDragActive } = useDropzone({
+    onDrop: onDropRight,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+    },
+    disabled: uploading !== null,
+    maxFiles: 1,
+  });
+
+  const removeBanner = (position: "left" | "right") => {
+    const updatedBanners = { ...formData.banners };
+    updatedBanners[position] = null;
+    updateFormData("banners", updatedBanners);
+  };
+
+  const handleContinue = () => {
+    nextStep();
+  };
+
+  // Banner 拖动相关函数
+  const startBannerDrag = (e: React.MouseEvent, bannerType: "left" | "right") => {
+    e.preventDefault();
+    setIsDraggingBanner(true);
+    setDraggingBannerType(bannerType);
+  };
+
+  const handleBannerDrag = (e: React.MouseEvent) => {
+    if (!isDraggingBanner || !draggingBannerType) return;
+
+    const container = e.currentTarget as HTMLElement;
+    const rect = container.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    // 限制位置在容器内
+    const clampedX = Math.max(0, Math.min(100, x));
+    const clampedY = Math.max(0, Math.min(100, y));
+
+    // 更新 Banner 位置
+    const updatedBanners = { ...formData.banners };
+    if (updatedBanners[draggingBannerType]) {
+      updatedBanners[draggingBannerType] = {
+        ...updatedBanners[draggingBannerType]!,
+        position: { left: clampedX, top: clampedY }
+      };
+      updateFormData("banners", updatedBanners);
+    }
+  };
+
+  const stopBannerDrag = () => {
+    setIsDraggingBanner(false);
+    setDraggingBannerType(null);
+  };
+
+  // Banner 缩放处理函数
+  const handleBannerScaleChange = (bannerType: "left" | "right", scale: number) => {
+    const updatedBanners = { ...formData.banners };
+    if (updatedBanners[bannerType]) {
+      updatedBanners[bannerType] = {
+        ...updatedBanners[bannerType]!,
+        scale: scale
+      };
+      updateFormData("banners", updatedBanners);
+    }
+  };
+
+  // 切换横竖屏
+  const toggleOrientation = () => {
+    setIsLandscape(!isLandscape);
+  };
+
+  // 当视频被拖动后自动播放
+  const handleVideoSeeked = () => {
+    // 只有在非拖动滑块状态下才自动播放
+    if (!isDraggingSlider && videoRef.current && videoRef.current.paused) {
+      videoRef.current.play().catch(e => console.error('Auto play failed:', e));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-semibold text-gray-800">
+          Add Banner Images (Optional)
+        </h2>
+        <p className="text-gray-600">
+          Add banner images for landscape mode display
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-medium text-gray-800">Video</h3>
+            <button
+              onClick={toggleOrientation}
+              className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+            >
+              <svg
+                className="h-4 w-4 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              {isLandscape ? "Portrait Mode" : "Landscape Mode"}
+            </button>
+          </div>
+          
+          <div 
+            className={`bg-black rounded-lg overflow-hidden relative transition-all duration-300 ${
+              isLandscape 
+                ? "aspect-video" 
+                : "aspect-[9/16] max-w-[400px] mx-auto"
+            }`}
+            onMouseMove={handleBannerDrag}
+            onMouseUp={stopBannerDrag}
+            onMouseLeave={stopBannerDrag}
+          >
+            <video
+              ref={videoRef}
+              src={formData.video.url}
+              className="w-full h-full object-contain pointer-events-none"
+              onSeeked={handleVideoSeeked}
+            />
+            
+            {/* 根据视频方向和当前显示模式显示 Banner */}
+            {videoIsLandscape ? (
+              // 横屏视频：只在竖屏模式下显示 Top/Bottom Banner
+              !isLandscape && (
+                <>
+                  {formData.banners?.left && (
+                    <div 
+                      className="absolute cursor-move"
+                      style={{
+                        left: `${formData.banners.left.position?.left || 0}%`,
+                        top: `${formData.banners.left.position?.top || 0}%`,
+                        transform: `translate(-50%, -50%) scale(${formData.banners.left.scale || 1})`,
+                        width: '16.67%', // 1/6 of container width
+                        height: '16.67%'  // 1/6 of container height
+                      }}
+                      onMouseDown={(e) => startBannerDrag(e, "left")}
+                    >
+                      <img 
+                        src={formData.banners.left.url} 
+                        alt="Left Banner"
+                        className="w-full h-full object-contain" 
+                      />
+                    </div>
+                  )}
+                  
+                  {formData.banners?.right && (
+                    <div 
+                      className="absolute cursor-move"
+                      style={{
+                        left: `${formData.banners.right.position?.left || 50}%`,
+                        top: `${formData.banners.right.position?.top || 83.33}%`,
+                        transform: `translate(-50%, -50%) scale(${formData.banners.right.scale || 1})`,
+                        width: '16.67%', // 1/6 of container width
+                        height: '16.67%'  // 1/6 of container height
+                      }}
+                      onMouseDown={(e) => startBannerDrag(e, "right")}
+                    >
+                      <img 
+                        src={formData.banners.right.url} 
+                        alt="Right Banner"
+                        className="w-full h-full object-contain" 
+                      />
+                    </div>
+                  )}
+                </>
+              )
+            ) : (
+              // 竖屏视频：只在横屏模式下显示 Left/Right Banner
+              isLandscape && (
+                <>
+                  {formData.banners?.left && (
+                    <div 
+                      className="absolute cursor-move"
+                      style={{
+                        left: `${formData.banners.left.position?.left || 0}%`,
+                        top: `${formData.banners.left.position?.top || 50}%`,
+                        transform: `translate(-50%, -50%) scale(${formData.banners.left.scale || 1})`,
+                        width: '16.67%', // 1/6 of container width
+                        height: '100%'   // full height
+                      }}
+                      onMouseDown={(e) => startBannerDrag(e, "left")}
+                    >
+                      <img 
+                        src={formData.banners.left.url} 
+                        alt="Top Banner"
+                        className="w-full h-full object-contain" 
+                      />
+                    </div>
+                  )}
+                  
+                  {formData.banners?.right && (
+                    <div 
+                      className="absolute cursor-move"
+                      style={{
+                        left: `${formData.banners.right.position?.left || 83.33}%`,
+                        top: `${formData.banners.right.position?.top || 50}%`,
+                        transform: `translate(-50%, -50%) scale(${formData.banners.right.scale || 1})`,
+                        width: '16.67%', // 1/6 of container width
+                        height: '100%'   // full height
+                      }}
+                      onMouseDown={(e) => startBannerDrag(e, "right")}
+                    >
+                      <img 
+                        src={formData.banners.right.url} 
+                        alt="Bottom Banner"
+                        className="w-full h-full object-contain" 
+                      />
+                    </div>
+                  )}
+                </>
+              )
+            )}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-lg font-medium text-gray-800 mb-4">Add Banner Images</h3>
+          
+          {/* Note 内容移到上方 */}
+          {(formData.banners?.left || formData.banners?.right) && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-start">
+                <svg
+                  className="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div>
+                  <h4 className="text-sm font-medium text-blue-800">Note</h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    {formData.banners?.left && formData.banners?.right 
+                      ? "" // 上传了两个 banner 后不显示提示
+                      : formData.banners?.left || formData.banners?.right 
+                        ? `You have uploaded one banner image. Please upload both ${videoIsLandscape ? "top and bottom" : "left and right"} banner images to continue.`
+                        : `Banner images are optional and will be displayed ${videoIsLandscape ? "on the top and bottom" : "on the left and right sides"} of the video when viewed in ${videoIsLandscape ? "portrait" : "landscape"} mode. This helps to fill empty space on ${videoIsLandscape ? "taller" : "wider"} screens.`
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-6">
+            {/* Left Banner */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                {videoIsLandscape ? "Top Banner" : "Left Banner"}
+              </h4>
+              {formData.banners?.left ? (
+                <div className="relative">
+                  <img
+                    src={formData.banners.left.url}
+                    alt="Left Banner"
+                    className="w-full h-32 object-contain rounded-lg"
+                  />
+                  <button
+                    onClick={() => removeBanner("left")}
+                    className="absolute top-2 right-2 p-1 bg-red-500 rounded-full text-white hover:bg-red-600"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div
+                  {...getLeftRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-6 h-32 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                    isLeftDragActive
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-300 hover:border-blue-400"
+                  } ${uploading === "left" ? "opacity-75" : ""}`}
+                >
+                  <input {...getLeftInputProps()} />
+                  <svg
+                    className="h-8 w-8 text-gray-400 mb-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                    />
+                  </svg>
+                  {uploading === "left" ? (
+                    <p className="text-gray-700 text-sm">Uploading banner...</p>
+                  ) : (
+                    <p className="text-gray-700 text-sm text-center">
+                      {isLeftDragActive
+                        ? "Drop the image here"
+                        : `Drag and drop ${videoIsLandscape ? "top" : "left"} banner image here, or click to select`}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Left Banner Scale Control */}
+            {formData.banners?.left && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    {videoIsLandscape ? "Top" : "Left"} Banner Scale
+                  </label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="3"
+                    step="0.1"
+                    value={formData.banners.left.scale || 1}
+                    onChange={(e) => handleBannerScaleChange("left", parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0.1x</span>
+                    <span className="font-medium">{(formData.banners.left.scale || 1).toFixed(1)}x</span>
+                    <span>3.0x</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    {videoIsLandscape ? "Top" : "Left"} Banner Position X
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={formData.banners.left.position?.left || 0}
+                    onChange={(e) => {
+                      const updatedBanners = { ...formData.banners };
+                      if (updatedBanners.left) {
+                        updatedBanners.left = {
+                          ...updatedBanners.left,
+                          position: { 
+                            ...updatedBanners.left.position, 
+                            left: parseFloat(e.target.value) 
+                          }
+                        };
+                        updateFormData("banners", updatedBanners);
+                      }
+                    }}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span className="font-medium">{(formData.banners.left.position?.left || 0).toFixed(0)}%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    {videoIsLandscape ? "Top" : "Left"} Banner Position Y
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={formData.banners.left.position?.top || 0}
+                    onChange={(e) => {
+                      const updatedBanners = { ...formData.banners };
+                      if (updatedBanners.left) {
+                        updatedBanners.left = {
+                          ...updatedBanners.left,
+                          position: { 
+                            ...updatedBanners.left.position, 
+                            top: parseFloat(e.target.value) 
+                          }
+                        };
+                        updateFormData("banners", updatedBanners);
+                      }
+                    }}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span className="font-medium">{(formData.banners.left.position?.top || 0).toFixed(0)}%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            {formData.banners?.left && formData.banners?.right && (
+              <div className="my-6 border-t border-gray-200"></div>
+            )}
+
+            {/* Right Banner */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                {videoIsLandscape ? "Bottom Banner" : "Right Banner"}
+              </h4>
+              {formData.banners?.right ? (
+                <div className="relative">
+                  <img
+                    src={formData.banners.right.url}
+                    alt="Right Banner"
+                    className="w-full h-32 object-contain rounded-lg"
+                  />
+                  <button
+                    onClick={() => removeBanner("right")}
+                    className="absolute top-2 right-2 p-1 bg-red-500 rounded-full text-white hover:bg-red-600"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div
+                  {...getRightRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-6 h-32 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                    isRightDragActive
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-300 hover:border-blue-400"
+                  } ${uploading === "right" ? "opacity-75" : ""}`}
+                >
+                  <input {...getRightInputProps()} />
+                  <svg
+                    className="h-8 w-8 text-gray-400 mb-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                    />
+                  </svg>
+                  {uploading === "right" ? (
+                    <p className="text-gray-700 text-sm">Uploading banner...</p>
+                  ) : (
+                    <p className="text-gray-700 text-sm text-center">
+                      {isRightDragActive
+                        ? "Drop the image here"
+                        : `Drag and drop ${videoIsLandscape ? "bottom" : "right"} banner image here, or click to select`}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right Banner Scale Control */}
+            {formData.banners?.right && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    {videoIsLandscape ? "Bottom" : "Right"} Banner Scale
+                  </label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="3"
+                    step="0.1"
+                    value={formData.banners.right.scale || 1}
+                    onChange={(e) => handleBannerScaleChange("right", parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0.1x</span>
+                    <span className="font-medium">{(formData.banners.right.scale || 1).toFixed(1)}x</span>
+                    <span>3.0x</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    {videoIsLandscape ? "Bottom" : "Right"} Banner Position X
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={formData.banners.right.position?.left || 50}
+                    onChange={(e) => {
+                      const updatedBanners = { ...formData.banners };
+                      if (updatedBanners.right) {
+                        updatedBanners.right = {
+                          ...updatedBanners.right,
+                          position: { 
+                            ...updatedBanners.right.position, 
+                            left: parseFloat(e.target.value) 
+                          }
+                        };
+                        updateFormData("banners", updatedBanners);
+                      }
+                    }}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span className="font-medium">{(formData.banners.right.position?.left || 50).toFixed(0)}%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    {videoIsLandscape ? "Bottom" : "Right"} Banner Position Y
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={formData.banners.right.position?.top || 83.33}
+                    onChange={(e) => {
+                      const updatedBanners = { ...formData.banners };
+                      if (updatedBanners.right) {
+                        updatedBanners.right = {
+                          ...updatedBanners.right,
+                          position: { 
+                            ...updatedBanners.right.position, 
+                            top: parseFloat(e.target.value) 
+                          }
+                        };
+                        updateFormData("banners", updatedBanners);
+                      }
+                    }}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span className="font-medium">{(formData.banners.right.position?.top || 83.33).toFixed(0)}%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-md text-center text-sm">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={prevStep}
+          className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
+        >
+          Back
+        </button>
+        <button
+          onClick={handleContinue}
+          disabled={formData.banners?.left && !formData.banners?.right || !formData.banners?.left && formData.banners?.right}
+          className={`px-6 py-2 rounded-md font-medium ${
+            formData.banners?.left && !formData.banners?.right || !formData.banners?.left && formData.banners?.right
+              ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }`}
+        >
+          {!formData.banners?.left && !formData.banners?.right 
+            ? "Skip & Continue" 
+            : "Continue"
+          }
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default BannerUpload; 

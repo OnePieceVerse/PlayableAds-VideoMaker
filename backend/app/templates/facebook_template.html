@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playable Ad</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #video-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .pause-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .guide-image {
+            position: absolute;
+            display: none;
+        }
+        
+        .cta-button {
+            position: absolute;
+            cursor: pointer;
+        }
+        
+        .banner {
+            position: absolute;
+            display: none;
+        }
+        
+        .banner.left {
+            left: 0;
+            top: 0;
+            height: 100%;
+        }
+        
+        .banner.right {
+            right: 0;
+            top: 0;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <video id="ad-video" src="{{ video_url }}" playsinline></video>
+        
+        <div class="pause-overlay" id="pause-overlay"></div>
+        
+        {% for frame in pause_frames %}
+        <img 
+            class="guide-image" 
+            id="guide-{{ loop.index }}" 
+            src="{{ frame.image_url }}" 
+            style="left: {{ frame.position.left }}%; top: {{ frame.position.top }}%;"
+        >
+        {% endfor %}
+        
+        {% for button in cta_buttons %}
+        <img 
+            class="cta-button {{ button.type }}" 
+            id="cta-{{ loop.index }}" 
+            src="{{ button.image_url }}" 
+            style="left: {{ button.position.left }}%; top: {{ button.position.top }}%; {% if button.type == 'fulltime' %}display: block;{% else %}display: none;{% endif %}"
+        >
+        {% endfor %}
+        
+        {% if banners.left %}
+        <img class="banner left" id="banner-left" src="{{ banners.left }}">
+        {% endif %}
+        
+        {% if banners.right %}
+        <img class="banner right" id="banner-right" src="{{ banners.right }}">
+        {% endif %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('ad-video');
+            const pauseOverlay = document.getElementById('pause-overlay');
+            
+            // 暂停帧配置
+            const pauseFrames = [
+                {% for frame in pause_frames %}
+                {
+                    time: {{ frame.time }},
+                    guideId: 'guide-{{ loop.index }}'
+                },
+                {% endfor %}
+            ];
+            
+            // CTA按钮配置
+            const ctaButtons = [
+                {% for button in cta_buttons %}
+                {
+                    type: '{{ button.type }}',
+                    id: 'cta-{{ loop.index }}',
+                    {% if button.start_time %}
+                    startTime: {{ button.start_time }}
+                    {% endif %}
+                },
+                {% endfor %}
+            ];
+            
+            // 初始化
+            video.addEventListener('loadedmetadata', function() {
+                // 视频加载完成后自动播放
+                video.play().catch(e => console.error('Auto play failed:', e));
+            });
+            
+            // 监听视频时间更新
+            video.addEventListener('timeupdate', function() {
+                const currentTime = video.currentTime;
+                
+                // 检查是否需要暂停
+                pauseFrames.forEach(frame => {
+                    if (Math.abs(currentTime - frame.time) < 0.1 && !video.paused) {
+                        video.pause();
+                        pauseOverlay.style.display = 'block';
+                        document.getElementById(frame.guideId).style.display = 'block';
+                    }
+                });
+                
+                // 检查是否需要显示结尾CTA按钮
+                ctaButtons.forEach(button => {
+                    if (button.type === 'endscreen' && button.startTime && currentTime >= button.startTime) {
+                        document.getElementById(button.id).style.display = 'block';
+                    }
+                });
+            });
+            
+            // 点击暂停覆盖层继续播放
+            pauseOverlay.addEventListener('click', function() {
+                // 隐藏所有引导图片
+                document.querySelectorAll('.guide-image').forEach(img => {
+                    img.style.display = 'none';
+                });
+                
+                pauseOverlay.style.display = 'none';
+                video.play();
+            });
+            
+            // 点击CTA按钮
+            document.querySelectorAll('.cta-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    // 这里可以添加点击后的行为，如跳转到应用商店
+                    console.log('CTA button clicked');
+                    // 示例：window.open('https://play.google.com/store/apps/details?id=your.app.id');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
