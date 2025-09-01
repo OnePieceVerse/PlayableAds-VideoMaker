@@ -1,0 +1,708 @@
+html, body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.ad-container {
+  position: fixed;
+  left: 0; top: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: #000;
+  overflow: hidden;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ad-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;   /* 由 cover 改为 contain，保证内容完整显示 */
+  background: #000;
+  transition: transform 1s ease;
+}
+
+/* 旋转状态 */
+.ad-video.rotated {
+  transform: rotate(90deg);
+  transform-origin: center;
+  object-fit: contain;
+  width: 100vh;
+  height: 100vw;
+}
+
+/* 点击提示层 */
+.click-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 20;
+  cursor: pointer;
+  gap: 20px;
+}
+
+/* 竖屏模式下的位置 */
+@media (orientation: portrait) {
+  .click-layer {
+    padding-top: 120%;
+  }
+}
+
+/* 横屏模式下的位置 */
+@media (orientation: landscape) {
+  .click-layer {
+    padding-top: 35%;
+  }
+  
+  .rotate-icon {
+    display: none;
+  }
+  
+  .click-tip .highlight {
+    display: none;
+  }
+}
+
+/* 旋转提示图标 */
+.rotate-icon {
+  width: 50px;
+  height: 50px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  position: relative;
+  margin: 15px;
+  animation: rotatePhone 2s infinite, glowPulse 2s infinite;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+  backdrop-filter: blur(5px);
+}
+
+@keyframes rotatePhone {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+  100% { transform: rotate(90deg); }
+}
+
+/* 提示文本 */
+.click-tip {
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  padding: 15px 40px;
+  text-align: center;
+  line-height: 1.5;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3),
+               0 0 10px rgba(255, 192, 255, 0.5);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 30px;
+  backdrop-filter: blur(5px);
+  animation: glowPulse 2s infinite;
+}
+
+@keyframes glowPulse {
+  0% {
+    box-shadow: 0 0 10px rgba(255, 192, 255, 0.3),
+                0 0 20px rgba(255, 192, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(255, 192, 255, 0.5),
+                0 0 30px rgba(255, 192, 255, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(255, 192, 255, 0.3),
+                0 0 20px rgba(255, 192, 255, 0.2);
+  }
+}
+
+.click-tip .highlight {
+  display: block;
+  color: #FFD700;
+  font-size: 20px;
+  margin-top: 8px;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+/* 横屏模式隐藏旋转提示 */
+@media (orientation: landscape) {
+  .rotate-icon {
+    display: none;
+  }
+  
+  .click-tip .highlight {
+    display: none;
+  }
+}
+
+/* UI控制层 */
+.ui-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 控制按钮容器 */
+.controls {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+/* 通用按钮样式 */
+.control-btn {
+  min-width: 120px;
+  height: 40px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  backdrop-filter: blur(5px);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* 竖屏适配 */
+@media (orientation: portrait) {
+  .controls {
+    bottom: 40px;
+    transform: translateX(-50%) rotate(90deg);
+  }
+  
+  .control-btn {
+    min-width: 100px;
+    height: 36px;
+    font-size: 14px;
+  }
+}
+
+/* 视频比例变量 (1920x1080 = 16:9) */
+:root {
+  --video-ratio: calc(1920 / 1080);  /* 约等于1.7778 */
+  --video-ratio-inverse: calc(1080 / 1920);  /* 约等于0.5625 */
+}
+
+.guide-layer {
+  position: absolute;
+  /* left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 30;*/ /* 高于 click-layer 的 20 */
+  /* pointer-events: auto; */ 
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.1s;
+}
+
+.guide-layer.rotating {
+  opacity: 0;
+}
+
+/* 竖屏模式下的旋转 */
+.guide-layer.rotated {
+  transform: translate(-50%, -50%) rotate(90deg);
+  width: calc(100vh * var(--video-ratio));
+  height: calc(100vw * var(--video-ratio-inverse));
+}
+
+/* 横屏模式 */
+@media (orientation: landscape) {
+  .guide-layer {
+    width: calc(100vh * var(--video-ratio));
+    height: 100%;
+    max-width: 100%;
+  }
+}
+
+/* 竖屏模式 */
+@media (orientation: portrait) {
+  .guide-layer {
+    width: 100%;
+    /* height: calc(100vw * var(--video-ratio-inverse)); */
+    max-height: 100%;
+  }
+}
+
+/* 按钮和引导图片样式 */
+.button-image {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: transform 0.5s ease;
+}
+
+.button-image:hover {
+  transform: translate(-50%, -50%) scale(1.05);
+}
+
+.guide-image {
+  position: absolute;
+  pointer-events: none;
+  transition: transform 0.5s ease;
+  z-index: 10;
+}
+
+/* 缩放动画 */
+@keyframes scaleGuide {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes scaleGuideRotated {
+  0% { transform: scale(1);}
+  50% { transform: scale(1.2);}
+  100% { transform: scale(1);}
+}
+
+.button-image.scale-animation {
+  animation: scaleGuide 1.5s infinite;
+}
+
+.guide-layer.rotated .button-image.scale-animation {
+  animation: scaleGuideRotated 1.5s infinite;
+}
+
+/* 角度移动动画 */
+@keyframes moveGuide {
+  0% { transform: translate(-50%, -50%); }
+  50% { transform: translate(calc(-50% + var(--move-x)), calc(-50% + var(--move-y))); }
+  100% { transform: translate(-50%, -50%); }
+}
+
+.guide-image.angle-animation {
+  animation: moveGuide 1.5s infinite;
+}
+
+@keyframes bounceY {
+  0%   { transform: translateY(0); }
+  20%  { transform: translateY(-8px); }
+  50%  { transform: translateY(0); }
+  70%  { transform: translateY(8px); }
+  100% { transform: translateY(0); }
+}
+
+.guide-image.bounce-y {
+  animation: bounceY 0.7s ease-in-out infinite;
+}
+
+@keyframes slideInRight {
+  0% {
+    opacity: 0;
+    transform: translateX(200px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-8px);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.guide-image.slide-in-right {
+  animation: slideInRight 2s cubic-bezier(0.4,0,0.2,1) 1;
+}
+
+/* 交互区域 */
+.interaction-area {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.interaction-area:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* CTA按钮基础样式 */
+.cta-button {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s ease;
+  display: none; /* 默认隐藏 */
+  z-index: 10;
+}
+
+.cta-button.visible {
+  display: block;
+  animation: ctaScale 1.5s ease-in-out infinite;
+  opacity: 1;
+}
+
+.cta-button:hover {
+  animation: none;
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* 缩放动画 */
+@keyframes ctaScale {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 竖屏模式下的样式 */
+.guide-layer.rotated .guide-container .cta-button {
+  transform-origin: center;
+}
+
+.guide-layer.rotated .guide-container .cta-button.visible {
+  animation: ctaScaleRotated 1.5s ease-in-out infinite;
+}
+
+.guide-layer.rotated .guide-container .cta-button:hover {
+  animation: none;
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+@keyframes ctaScaleRotated {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes scaleBounce {
+  0% { transform: scale(1); }
+  20% { transform: scale(1.15); }
+  50% { transform: scale(1); }
+  70% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+.cta-end-button.scale-bounce {
+  animation: scaleBounce 0.8s cubic-bezier(0.4,0,0.2,1) infinite;
+}
+
+#ctaStartContainer.rotated,
+#ctaEndContainer.rotated {
+  transform: rotate(90deg);
+  transform-origin: center center;
+  width: 100vh;
+  height: 100vw;
+  left: 0;
+  top: 0;
+  position: absolute;
+  z-index: 21;
+}
+/* 开始屏幕图片样式 */
+.start-screen-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 100%;
+  min-height: 100%;
+  width: auto;
+  height: auto;
+  pointer-events: none;
+  transition: transform 0.5s ease;
+  z-index: 5;
+  object-fit: cover;
+}
+
+/* 横屏模式下的开始屏幕 */
+@media (orientation: landscape) {
+  .start-screen-image {
+    min-width: 100vw;
+    min-height: 100vh;
+    max-width: none;
+    max-height: none;
+  }
+}
+
+/* 竖屏模式下的开始屏幕 */
+@media (orientation: portrait) {
+  .start-screen-image {
+    min-width: 100vw;
+    min-height: 100vh;
+    max-width: none;
+    max-height: none;
+  }
+}
+
+/* 竖屏模式下的旋转 */
+.guide-layer.rotated .start-screen-image {
+  transform: translate(-50%, -50%) rotate(90deg);
+  min-width: 100vh;
+  min-height: 100vw;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+}
+
+/* click-tip 显眼动画 */
+.click-tip {
+  animation: clickTipGlow 1.5s infinite, clickTipFloat 1.2s infinite;
+}
+
+@keyframes clickTipGlow {
+  0% {
+    box-shadow: 0 0 20px 8px rgba(255, 192, 255, 0.4), 0 0 0 0 rgba(255,255,255,0.2);
+  }
+  50% {
+    box-shadow: 0 0 40px 16px rgba(255, 192, 255, 0.7), 0 0 0 8px rgba(255,255,255,0.1);
+  }
+  100% {
+    box-shadow: 0 0 20px 8px rgba(255, 192, 255, 0.4), 0 0 0 0 rgba(255,255,255,0.2);
+  }
+}
+
+@keyframes clickTipFloat {
+  0% { transform: translateY(0);}
+  50% { transform: translateY(-10px);}
+  100% { transform: translateY(0);}
+}
+
+/* 声音波纹控制样式 - 水平滑动条版本 */
+.sound-wave-container {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 80px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.wave-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 水平滑动轨道 */
+.slider-track {
+  height: 45px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 25px;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+}
+
+/* 滑动进度条 */
+.slider-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.4) 100%);
+  transition: width 0.1s;
+}
+
+/* 起始和结束标记 */
+.slider-start-marker,
+.slider-end-marker {
+  position: absolute;
+  width: 3px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1.5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.slider-start-marker {
+  left: 6px;
+}
+
+.slider-end-marker {
+  right: 6px;
+}
+
+.sound-ball {
+  width: 42px;
+  height: 42px;
+  background: radial-gradient(circle at 30% 30%, #64b5f6 0%, #1976d2 80%, #0d47a1 100%);
+  border-radius: 50%;
+  position: absolute;
+  box-shadow: 0 2px 10px rgba(25, 118, 210, 0.5);
+  z-index: 5;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.1s;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.sound-ball::before {
+  content: '';
+  position: absolute;
+  top: 20%;
+  left: 20%;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  filter: blur(1px);
+}
+
+.sound-ball.active {
+  box-shadow: 0 4px 15px rgba(25, 118, 210, 0.7);
+  background: radial-gradient(circle at 30% 30%, #29b6f6 0%, #0d47a1 100%);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.sound-ball.success {
+  background: radial-gradient(circle at 30% 30%, #ffee58 0%, #ffa726 100%);
+  box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+  animation: ballPulse 0.8s ease-out;
+}
+
+/* 成功状态指示器 */
+.success-indicator {
+  position: absolute;
+  right: -40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(76, 175, 80, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.success-indicator.active {
+  opacity: 1;
+  background: rgba(76, 175, 80, 0.8);
+}
+
+.success-indicator::before {
+  content: '';
+  width: 12px;
+  height: 6px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg) translate(1px, -2px);
+}
+
+/* 计时器样式 */
+.hold-timer {
+  position: absolute;
+  top: -25px;
+  right: 0;
+  font-size: 14px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 8px;
+  border-radius: 10px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.hold-timer.active {
+  opacity: 1;
+}
+
+@keyframes ballPulse {
+  0% { transform: translateY(-50%) scale(1); }
+  50% { transform: translateY(-50%) scale(1.2); }
+  100% { transform: translateY(-50%) scale(1); }
+}
+
+.sound-label {
+  color: #fff;
+  font-size: 1rem;
+  margin-bottom: 10px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  padding: 4px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(4px);
+  opacity: 0.9;
+  transition: opacity 0.5s ease;
+}
+
+.sound-tip {
+  color: #fff;
+  font-size: 0.9rem;
+  margin-top: 10px;
+  min-height: 1.2em;
+  text-align: center;
+  background: rgba(244, 67, 54, 0.7);
+  border-radius: 8px;
+  padding: 3px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity 0.3s;
+  backdrop-filter: blur(4px);
+}
+
+/* 媒体查询适配 */
+@media (max-height: 600px) {
+  .sound-wave-container {
+    height: 220px;
+  }
+  
+  .wave-container {
+    height: 150px;
+  }
+  
+  .sound-label {
+    margin-bottom: 10px;
+  }
+}
