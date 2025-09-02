@@ -23,20 +23,28 @@ html, body {
 }
 
 .ad-video {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;   /* 由 cover 改为 contain，保证内容完整显示 */
   background: #000;
   transition: transform 1s ease;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 /* 旋转状态 */
 .ad-video.rotated {
-  transform: rotate(90deg);
+  transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center;
   object-fit: contain;
-  width: 100vh;
-  height: 100vw;
+  max-width: 100vh;
+  max-height: 100vw;
+  width: auto;
+  height: auto;
 }
 
 /* 点击提示层 */
@@ -213,20 +221,18 @@ html, body {
 
 .guide-layer {
   position: absolute;
-  /* left: 0;
-  top: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 30;*/ /* 高于 click-layer 的 20 */
-  /* pointer-events: auto; */ 
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   pointer-events: none;
   opacity: 1;
   transition: opacity 0.1s;
+  /* 确保guide-layer与视频区域大小一致 */
+  z-index: 30;
 }
 
 .guide-layer.rotating {
@@ -280,15 +286,15 @@ html, body {
 
 /* 缩放动画 */
 @keyframes scaleGuide {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.2); }
+  100% { transform: translate(-50%, -50%) scale(1); }
 }
 
 @keyframes scaleGuideRotated {
-  0% { transform: scale(1);}
-  50% { transform: scale(1.2);}
-  100% { transform: scale(1);}
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.2); }
+  100% { transform: translate(-50%, -50%) scale(1); }
 }
 
 .button-image.scale-animation {
@@ -311,11 +317,11 @@ html, body {
 }
 
 @keyframes bounceY {
-  0%   { transform: translateY(0); }
-  20%  { transform: translateY(-8px); }
-  50%  { transform: translateY(0); }
-  70%  { transform: translateY(8px); }
-  100% { transform: translateY(0); }
+  0%   { transform: translate(-50%, -50%) translateY(0); }
+  20%  { transform: translate(-50%, -50%) translateY(-8px); }
+  50%  { transform: translate(-50%, -50%) translateY(0); }
+  70%  { transform: translate(-50%, -50%) translateY(8px); }
+  100% { transform: translate(-50%, -50%) translateY(0); }
 }
 
 .guide-image.bounce-y {
@@ -325,19 +331,19 @@ html, body {
 @keyframes slideInRight {
   0% {
     opacity: 0;
-    transform: translateX(200px);
+    transform: translate(-50%, -50%) translateX(200px);
   }
   60% {
     opacity: 1;
-    transform: translateX(-8px);
+    transform: translate(-50%, -50%) translateX(-8px);
   }
   80% {
     opacity: 1;
-    transform: translateX(4px);
+    transform: translate(-50%, -50%) translateX(4px);
   }
   100% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate(-50%, -50%) translateX(0);
   }
 }
 
@@ -378,8 +384,8 @@ html, body {
 }
 
 .cta-button:hover {
-  animation: none;
-  transform: translate(-50%, -50%) scale(1.1);
+  animation: none !important;
+  transform: translate(-50%, -50%) scale(1.1) !important;
 }
 
 /* 缩放动画 */
@@ -389,20 +395,6 @@ html, body {
   100% { transform: translate(-50%, -50%) scale(1); }
 }
 
-/* 竖屏模式下的样式 */
-.guide-layer.rotated .guide-container .cta-button {
-  transform-origin: center;
-}
-
-.guide-layer.rotated .guide-container .cta-button.visible {
-  animation: ctaScaleRotated 1.5s ease-in-out infinite;
-}
-
-.guide-layer.rotated .guide-container .cta-button:hover {
-  animation: none;
-  transform: translate(-50%, -50%) scale(1.1);
-}
-
 @keyframes ctaScaleRotated {
   0% { transform: translate(-50%, -50%) scale(1); }
   50% { transform: translate(-50%, -50%) scale(1.1); }
@@ -410,11 +402,11 @@ html, body {
 }
 
 @keyframes scaleBounce {
-  0% { transform: scale(1); }
-  20% { transform: scale(1.15); }
-  50% { transform: scale(1); }
-  70% { transform: scale(0.92); }
-  100% { transform: scale(1); }
+  0% { transform: translate(-50%, -50%) scale(1); }
+  20% { transform: translate(-50%, -50%) scale(1.15); }
+  50% { transform: translate(-50%, -50%) scale(1); }
+  70% { transform: translate(-50%, -50%) scale(0.92); }
+  100% { transform: translate(-50%, -50%) scale(1); }
 }
 
 .cta-end-button.scale-bounce {

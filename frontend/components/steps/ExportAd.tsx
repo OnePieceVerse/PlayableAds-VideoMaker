@@ -45,6 +45,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
   const [loadingFilesInfo, setLoadingFilesInfo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
   
   // 处理文件信息，去除重复文件
   const processFilesInfo = (data: FilesInfo) => {
@@ -194,7 +195,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
             top: (button.position?.top || 0) / 100
           },
           scale: button.scale || 1.0,
-          time: button.time || 0
+          time: button.startTime || 0
         })) : [],
         banners: formData.banners ? (
           Array.isArray(formData.banners) 
@@ -233,10 +234,6 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
               )
         ) : null
       };
-      
-      // 打印请求数据，用于调试
-      console.log("Request data:", requestData);
-      console.log("FormData:", formData);
       
       // 发送请求到后端
       const response = await fetch("http://localhost:8080/api/generate", {
@@ -288,6 +285,12 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
     }
   };
 
+  // 刷新预览
+  const refreshPreview = () => {
+    // 增加refreshKey触发iframe重新加载
+    setRefreshKey(prev => prev + 1);
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h2 className="text-2xl font-bold mb-6">Export Ad</h2>
@@ -299,15 +302,29 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
             <h3 className="text-lg font-medium text-gray-800">
               {result ? "Ad Preview" : "Preview Area"}
             </h3>
-            <button
-              className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-              onClick={toggleOrientation}
-            >
-              <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-              </svg>
-              {isLandscape ? "Portrait Mode" : "Landscape Mode"}
-            </button>
+            <div className="flex space-x-2">
+              {result && (
+                <button
+                  className="flex items-center px-3 py-1.5 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+                  onClick={refreshPreview}
+                  title="Refresh Preview"
+                >
+                  <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                  </svg>
+                  <span>Refresh</span>
+                </button>
+              )}
+              <button
+                className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                onClick={toggleOrientation}
+              >
+                <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                {isLandscape ? "Portrait Mode" : "Landscape Mode"}
+              </button>
+            </div>
           </div>
 
           <div
@@ -321,6 +338,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
               <React.Fragment>
                 <iframe
                   ref={iframeRef}
+                  key={`preview-iframe-${refreshKey}`}
                   src={result.previewUrl || `http://localhost:8080${result.preview_url}`}
                   className={`w-full h-full border-0 ${isLandscape ? "" : "transform rotate-0"}`}
                   title="Playable Ad Preview"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 
 interface PauseFrame {
@@ -48,6 +48,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
   const [isCopyingFrame, setIsCopyingFrame] = useState(false); // 添加是否正在复制帧的状态
   const [showConfirmDialog, setShowConfirmDialog] = useState(false); // 添加确认弹框状态
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null); // 添加确认动作
+  const [videoRect, setVideoRect] = useState<any>(null); // 存储视频实际显示区域
 
   // 当组件加载时，根据视频方向设置横竖屏状态
   useEffect(() => {
@@ -59,6 +60,123 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       }
     }
   }, [formData.video]);
+
+  // 计算视频的实际显示区域
+  const calculateVideoRect = useCallback(() => {
+    if (!containerRef.current || !videoRef.current) return null;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const videoElement = videoRef.current;
+    
+    // 默认视频区域与容器相同
+    let rect = {
+      left: containerRect.left,
+      top: containerRect.top,
+      width: containerRect.width,
+      height: containerRect.height,
+      right: containerRect.right,
+      bottom: containerRect.bottom,
+      x: containerRect.x,
+      y: containerRect.y
+    };
+    
+    // 使用视频的原始宽高，而不是显示尺寸
+    const videoWidth = formData.video?.metadata?.width || videoElement.videoWidth;
+    const videoHeight = formData.video?.metadata?.height || videoElement.videoHeight;
+    
+    if (videoWidth && videoHeight) {
+      console.log('PauseFrames - 使用视频原始宽高:', videoWidth, videoHeight);
+      
+      // 计算视频在容器中的实际显示区域
+      const containerAspect = containerRect.width / containerRect.height;
+      const videoAspect = videoWidth / videoHeight;
+      
+      if (containerAspect > videoAspect) {
+        // 视频高度填满容器，宽度居中
+        const displayedVideoWidth = containerRect.height * videoAspect;
+        const horizontalPadding = (containerRect.width - displayedVideoWidth) / 2;
+        rect = {
+          left: containerRect.left + horizontalPadding,
+          top: containerRect.top,
+          width: displayedVideoWidth,
+          height: containerRect.height,
+          right: containerRect.left + horizontalPadding + displayedVideoWidth,
+          bottom: containerRect.top + containerRect.height,
+          x: containerRect.left + horizontalPadding,
+          y: containerRect.top
+        };
+      } else {
+        // 视频宽度填满容器，高度居中
+        const displayedVideoHeight = containerRect.width / videoAspect;
+        const verticalPadding = (containerRect.height - displayedVideoHeight) / 2;
+        rect = {
+          left: containerRect.left,
+          top: containerRect.top + verticalPadding,
+          width: containerRect.width,
+          height: displayedVideoHeight,
+          right: containerRect.left + containerRect.width,
+          bottom: containerRect.top + verticalPadding + displayedVideoHeight,
+          x: containerRect.left,
+          y: containerRect.top + verticalPadding
+        };
+      }
+    }
+    
+    return rect;
+  }, [formData.video]);
+
+  // 在视频加载完成和窗口大小变化时更新视频区域
+  useEffect(() => {
+    const updateVideoRect = () => {
+      const rect = calculateVideoRect();
+      if (rect) {
+        setVideoRect(rect);
+        
+        // 打印视频的实际宽高
+        if (videoRef.current) {
+          console.log('PauseFrames - 视频元素实际宽高:', {
+            videoWidth: videoRef.current.videoWidth,
+            videoHeight: videoRef.current.videoHeight,
+            displayWidth: rect.width,
+            displayHeight: rect.height,
+            containerWidth: containerRef.current?.getBoundingClientRect().width,
+            containerHeight: containerRef.current?.getBoundingClientRect().height
+          });
+        }
+      }
+    };
+    
+    // 视频元数据加载完成时更新
+    const handleVideoMetadata = () => {
+      updateVideoRect();
+      
+      // 视频元数据加载完成时打印宽高
+      if (videoRef.current) {
+        console.log('PauseFrames - 视频元数据加载完成:', {
+          videoWidth: videoRef.current.videoWidth,
+          videoHeight: videoRef.current.videoHeight,
+          duration: videoRef.current.duration
+        });
+      }
+    };
+    
+    // 窗口大小变化时更新
+    window.addEventListener('resize', updateVideoRect);
+    
+    if (videoRef.current) {
+      videoRef.current.addEventListener('loadedmetadata', handleVideoMetadata);
+    }
+    
+    // 初始更新
+    updateVideoRect();
+    
+    return () => {
+      window.removeEventListener('resize', updateVideoRect);
+      if (videoRef.current) {
+        videoRef.current.removeEventListener('loadedmetadata', handleVideoMetadata);
+      }
+    };
+  }, [calculateVideoRect]);
 
   // Check if we have a video
   if (!formData.video) {
@@ -131,68 +249,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
 
   // 拖拽开始
   const startDrag = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !videoRect) return;
     
     setIsDragging(true);
     
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const videoElement = videoRef.current;
-    
-    // 获取视频的实际显示尺寸和位置
-    let videoRect = {
-      left: containerRect.left,
-      top: containerRect.top,
-      width: containerRect.width,
-      height: containerRect.height,
-      right: containerRect.right,
-      bottom: containerRect.bottom,
-      x: containerRect.x,
-      y: containerRect.y
-    };
-    
-    if (videoElement) {
-      const videoWidth = videoElement.videoWidth;
-      const videoHeight = videoElement.videoHeight;
-      
-      if (videoWidth && videoHeight) {
-        // 计算视频在容器中的实际显示区域
-        const containerAspect = containerRect.width / containerRect.height;
-        const videoAspect = videoWidth / videoHeight;
-        
-        if (containerAspect > videoAspect) {
-          // 视频高度填满容器，宽度居中
-          const displayedVideoWidth = containerRect.height * videoAspect;
-          const horizontalPadding = (containerRect.width - displayedVideoWidth) / 2;
-          videoRect = {
-            left: containerRect.left + horizontalPadding,
-            top: containerRect.top,
-            width: displayedVideoWidth,
-            height: containerRect.height,
-            right: containerRect.left + horizontalPadding + displayedVideoWidth,
-            bottom: containerRect.top + containerRect.height,
-            x: containerRect.left + horizontalPadding,
-            y: containerRect.top
-          };
-        } else {
-          // 视频宽度填满容器，高度居中
-          const displayedVideoHeight = containerRect.width / videoAspect;
-          const verticalPadding = (containerRect.height - displayedVideoHeight) / 2;
-          videoRect = {
-            left: containerRect.left,
-            top: containerRect.top + verticalPadding,
-            width: containerRect.width,
-            height: displayedVideoHeight,
-            right: containerRect.left + containerRect.width,
-            bottom: containerRect.top + verticalPadding + displayedVideoHeight,
-            x: containerRect.left,
-            y: containerRect.top + verticalPadding
-          };
-        }
-      }
-    }
-    
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!containerRef.current) return;
+      if (!videoRect) return;
       
       // 计算鼠标位置相对于视频区域的百分比
       const x = ((moveEvent.clientX - videoRect.left) / videoRect.width) * 100;
@@ -497,6 +559,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
 
   // 继续到下一步
   const handleContinue = () => {
+    // 检查是否至少添加了一个pause frame
+    if (formData.pauseFrames.length === 0) {
+      setError("Please add at least one pause frame before continuing");
+      return;
+    }
+
     // 如果有当前帧未添加，则提示添加
     if (currentFrame) {
       setConfirmAction(() => {
@@ -575,7 +643,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             />
             
             {/* 当前帧预览 */}
-            {currentFrame && (
+            {currentFrame && videoRect && (
               <div
                 className={`absolute cursor-move ${isDragging ? 'pointer-events-none' : ''}`}
                 style={{
@@ -595,7 +663,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             )}
             
             {/* 编辑中的帧预览 */}
-            {isEditing && editingFrame && (
+            {isEditing && editingFrame && videoRect && (
               <div
                 className={`absolute cursor-move ${isDragging ? 'pointer-events-none' : ''}`}
                 style={{
@@ -1058,7 +1126,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
         </button>
         <button
           onClick={handleContinue}
-          className="px-6 py-2 rounded-md text-white font-medium bg-blue-600 hover:bg-blue-700"
+          disabled={formData.pauseFrames.length === 0}
+          className={`px-6 py-2 rounded-md font-medium ${
+            formData.pauseFrames.length === 0
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }`}
         >
           Continue
         </button>

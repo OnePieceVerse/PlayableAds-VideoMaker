@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 
 interface CTAButton {
@@ -33,7 +33,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
 }) => {
   const [currentButton, setCurrentButton] = useState<CTAButton | null>(null);
   const [buttonType, setButtonType] = useState<"fulltime" | "endscreen">("fulltime");
-  const [position, setPosition] = useState({ left: 50, top: 50 });
+  const [position, setPosition] = useState({ left: 20, top: 20 });
   const [scale, setScale] = useState(0.2); // 20% of screen width
   const [startTime, setStartTime] = useState(0.1);
   const [uploading, setUploading] = useState(false);
@@ -45,6 +45,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedButtonType, setSelectedButtonType] = useState<"fulltime" | "endscreen" | null>(null);
   const [editingButton, setEditingButton] = useState<CTAButton | null>(null); // 添加编辑状态
+  const [videoRect, setVideoRect] = useState<any>(null); // 存储视频实际显示区域
 
   // 当组件加载时，根据视频方向设置横竖屏状态
   useEffect(() => {
@@ -56,6 +57,123 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       }
     }
   }, [formData.video]);
+
+  // 计算视频的实际显示区域
+  const calculateVideoRect = useCallback(() => {
+    if (!containerRef.current || !videoRef.current) return null;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const videoElement = videoRef.current;
+    
+    // 默认视频区域与容器相同
+    let rect = {
+      left: containerRect.left,
+      top: containerRect.top,
+      width: containerRect.width,
+      height: containerRect.height,
+      right: containerRect.right,
+      bottom: containerRect.bottom,
+      x: containerRect.x,
+      y: containerRect.y
+    };
+    
+    // 使用视频的原始宽高，而不是显示尺寸
+    const videoWidth = formData.video?.metadata?.width || videoElement.videoWidth;
+    const videoHeight = formData.video?.metadata?.height || videoElement.videoHeight;
+    
+    if (videoWidth && videoHeight) {
+      console.log('使用视频原始宽高:', videoWidth, videoHeight);
+      
+      // 计算视频在容器中的实际显示区域
+      const containerAspect = containerRect.width / containerRect.height;
+      const videoAspect = videoWidth / videoHeight;
+      
+      if (containerAspect > videoAspect) {
+        // 视频高度填满容器，宽度居中
+        const displayedVideoWidth = containerRect.height * videoAspect;
+        const horizontalPadding = (containerRect.width - displayedVideoWidth) / 2;
+        rect = {
+          left: containerRect.left + horizontalPadding,
+          top: containerRect.top,
+          width: displayedVideoWidth,
+          height: containerRect.height,
+          right: containerRect.left + horizontalPadding + displayedVideoWidth,
+          bottom: containerRect.top + containerRect.height,
+          x: containerRect.left + horizontalPadding,
+          y: containerRect.top
+        };
+      } else {
+        // 视频宽度填满容器，高度居中
+        const displayedVideoHeight = containerRect.width / videoAspect;
+        const verticalPadding = (containerRect.height - displayedVideoHeight) / 2;
+        rect = {
+          left: containerRect.left,
+          top: containerRect.top + verticalPadding,
+          width: containerRect.width,
+          height: displayedVideoHeight,
+          right: containerRect.left + containerRect.width,
+          bottom: containerRect.top + verticalPadding + displayedVideoHeight,
+          x: containerRect.left,
+          y: containerRect.top + verticalPadding
+        };
+      }
+    }
+    
+    return rect;
+  }, [formData.video]);
+
+  // 在视频加载完成和窗口大小变化时更新视频区域
+  useEffect(() => {
+    const updateVideoRect = () => {
+      const rect = calculateVideoRect();
+      if (rect) {
+        setVideoRect(rect);
+        
+        // 打印视频的实际宽高
+        if (videoRef.current) {
+          console.log('视频元素实际宽高:', {
+            videoWidth: videoRef.current.videoWidth,
+            videoHeight: videoRef.current.videoHeight,
+            displayWidth: rect.width,
+            displayHeight: rect.height,
+            containerWidth: containerRef.current?.getBoundingClientRect().width,
+            containerHeight: containerRef.current?.getBoundingClientRect().height
+          });
+        }
+      }
+    };
+    
+    // 视频元数据加载完成时更新
+    const handleVideoMetadata = () => {
+      updateVideoRect();
+      
+      // 视频元数据加载完成时打印宽高
+      if (videoRef.current) {
+        console.log('视频元数据加载完成:', {
+          videoWidth: videoRef.current.videoWidth,
+          videoHeight: videoRef.current.videoHeight,
+          duration: videoRef.current.duration
+        });
+      }
+    };
+    
+    // 窗口大小变化时更新
+    window.addEventListener('resize', updateVideoRect);
+    
+    if (videoRef.current) {
+      videoRef.current.addEventListener('loadedmetadata', handleVideoMetadata);
+    }
+    
+    // 初始更新
+    updateVideoRect();
+    
+    return () => {
+      window.removeEventListener('resize', updateVideoRect);
+      if (videoRef.current) {
+        videoRef.current.removeEventListener('loadedmetadata', handleVideoMetadata);
+      }
+    };
+  }, [calculateVideoRect]);
 
   // Check if we have a video
   if (!formData.video) {
@@ -123,68 +241,12 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
   };
 
   const startDrag = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !videoRect) return;
     
     setIsDragging(true);
     
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const videoElement = videoRef.current;
-    
-    // 获取视频的实际显示尺寸和位置
-    let videoRect = {
-      left: containerRect.left,
-      top: containerRect.top,
-      width: containerRect.width,
-      height: containerRect.height,
-      right: containerRect.right,
-      bottom: containerRect.bottom,
-      x: containerRect.x,
-      y: containerRect.y
-    };
-    
-    if (videoElement) {
-      const videoWidth = videoElement.videoWidth;
-      const videoHeight = videoElement.videoHeight;
-      
-      if (videoWidth && videoHeight) {
-        // 计算视频在容器中的实际显示区域
-        const containerAspect = containerRect.width / containerRect.height;
-        const videoAspect = videoWidth / videoHeight;
-        
-        if (containerAspect > videoAspect) {
-          // 视频高度填满容器，宽度居中
-          const displayedVideoWidth = containerRect.height * videoAspect;
-          const horizontalPadding = (containerRect.width - displayedVideoWidth) / 2;
-          videoRect = {
-            left: containerRect.left + horizontalPadding,
-            top: containerRect.top,
-            width: displayedVideoWidth,
-            height: containerRect.height,
-            right: containerRect.left + horizontalPadding + displayedVideoWidth,
-            bottom: containerRect.top + containerRect.height,
-            x: containerRect.left + horizontalPadding,
-            y: containerRect.top
-          };
-        } else {
-          // 视频宽度填满容器，高度居中
-          const displayedVideoHeight = containerRect.width / videoAspect;
-          const verticalPadding = (containerRect.height - displayedVideoHeight) / 2;
-          videoRect = {
-            left: containerRect.left,
-            top: containerRect.top + verticalPadding,
-            width: containerRect.width,
-            height: displayedVideoHeight,
-            right: containerRect.left + containerRect.width,
-            bottom: containerRect.top + verticalPadding + displayedVideoHeight,
-            x: containerRect.left,
-            y: containerRect.top + verticalPadding
-          };
-        }
-      }
-    }
-    
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!containerRef.current) return;
+      if (!videoRect) return;
       
       // 计算鼠标位置相对于视频区域的百分比
       const x = ((moveEvent.clientX - videoRect.left) / videoRect.width) * 100;
@@ -253,7 +315,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
           url: `http://localhost:8080${data.url}`,
         },
         position: { ...position },
-        scale: 0.2, // 20% of screen width
+        scale: scale, // 使用当前的scale值
       };
 
       if ((selectedButtonType || buttonType) === "endscreen") {
@@ -317,6 +379,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     const updatedButton: CTAButton = {
       ...currentButton,
       type: buttonTypeToAdd,
+      position: { ...position },
       scale: scale
     };
 
@@ -333,6 +396,8 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     setCurrentButton(null);
     setSelectedButtonType(null);
     setError(null);
+    
+    // 不重置位置和缩放，保留当前值
   };
 
   const removeCTAButton = (buttonId: string) => {
@@ -340,6 +405,12 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       (button: CTAButton) => button.id !== buttonId
     );
     updateFormData("ctaButtons", updatedButtons);
+    setEditingButton(null);
+    setCurrentButton(null);
+    setSelectedButtonType(null);
+    setError(null);
+    
+    // 不重置位置和缩放，保留当前值
   };
 
   const editCTAButton = (button: CTAButton) => {
@@ -377,6 +448,8 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     setCurrentButton(null);
     setSelectedButtonType(null);
     setError(null);
+    
+    // 不重置位置和缩放，保留当前值
   };
 
   const cancelEdit = () => {
@@ -384,6 +457,8 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     setCurrentButton(null);
     setSelectedButtonType(null);
     setError(null);
+    
+    // 不重置位置和缩放，保留当前值
   };
 
   const handleContinue = () => {
@@ -478,7 +553,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
             />
             
             {/* Current button preview */}
-            {currentButton && (
+            {currentButton && videoRect && (
               <div
                 className={`absolute cursor-move ${isDragging ? 'pointer-events-none' : ''}`}
                 style={{

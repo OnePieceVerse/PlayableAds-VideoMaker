@@ -29,9 +29,42 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
       if (width && height) {
         // 如果宽度大于高度，则为横屏，否则为竖屏
         setIsLandscape(width > height);
+        
+        // 打印视频元数据中的宽高
+        console.log('VideoUpload - 视频元数据中的宽高:', {
+          width,
+          height,
+          isLandscape: width > height,
+          metadata: formData.video.metadata
+        });
       }
     }
   }, [formData.video]);
+  
+  // 添加视频元数据加载事件监听
+  useEffect(() => {
+    const handleVideoMetadata = () => {
+      if (videoRef.current) {
+        console.log('VideoUpload - 视频元素实际宽高:', {
+          videoWidth: videoRef.current.videoWidth,
+          videoHeight: videoRef.current.videoHeight,
+          duration: videoRef.current.duration,
+          clientWidth: videoRef.current.clientWidth,
+          clientHeight: videoRef.current.clientHeight
+        });
+      }
+    };
+    
+    if (videoRef.current) {
+      videoRef.current.addEventListener('loadedmetadata', handleVideoMetadata);
+    }
+    
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.removeEventListener('loadedmetadata', handleVideoMetadata);
+      }
+    };
+  }, []);
 
   const onDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
