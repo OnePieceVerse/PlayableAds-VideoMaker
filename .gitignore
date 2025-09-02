@@ -9,3 +9,5 @@ backend/app/static/
 
 .cursor/
 .DS_Store
+projects/
+test/

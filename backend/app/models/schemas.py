@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Union, Literal
 from enum import Enum
+from typing import List, Dict, Optional, Union, Literal
+from pydantic import BaseModel, Field
 
 
 class FileType(str, Enum):
@@ -9,22 +9,63 @@ class FileType(str, Enum):
 
 
 class StepType(str, Enum):
-    VIDEO = "video"
-    PAUSE = "pause"
-    CTA = "cta"
-    BANNER = "banner"
+    VIDEO_UPLOAD = "video_upload"
+    PAUSE_FRAMES = "pause_frames"
+    CTA_BUTTONS = "cta_buttons"
+    BANNER_IMAGES = "banner_images"
+    EXPORT_AD = "export_ad"
 
 
-class Position(str, Enum):
-    LEFT = "left"
-    RIGHT = "right"
-    CENTER = "center"
+class Position(BaseModel):
+    left: float
+    top: float
+
+
+class PauseFrame(BaseModel):
+    time: float
+    image_id: str
+    position: Position
+    scale: float = 1.0
+
+
+class CTAButton(BaseModel):
+    type: str  # fulltime or endscreen
+    image_id: str
+    position: Position
+    scale: float = 1.0
+    time: Optional[float] = None  # For endscreen button
+
+
+class Banner(BaseModel):
+    type: str  # left/top or right/bottom
+    image_id: str
+    position: Position
+    scale: float = 1.0
+
+
+class BannerConfig(BaseModel):
+    left_image_id: Optional[str] = None
+    right_image_id: Optional[str] = None
+    left_position: Optional[Position] = None
+    right_position: Optional[Position] = None
+    left_scale: Optional[float] = None
+    right_scale: Optional[float] = None
 
 
 class Platform(str, Enum):
     GOOGLE = "google"
     FACEBOOK = "facebook"
     APPLOVIN = "applovin"
+    ALL = "all"
+
+class Language(str, Enum):
+    ENGLISH = "en"
+    CHINESE = "zh"
+    JAPANESE = "ja"
+    KOREAN = "ko"
+    FRENCH = "fr"
+    GERMAN = "de"
+    SPANISH = "es"
 
 
 class UploadResponse(BaseModel):
@@ -33,37 +74,21 @@ class UploadResponse(BaseModel):
     url: str = ""
     metadata: Optional[Dict] = None
     error: Optional[str] = None
-
-
-class PositionConfig(BaseModel):
-    left: float = Field(..., description="Left position percentage (0-100)")
-    top: float = Field(..., description="Top position percentage (0-100)")
-
-
-class PauseFrame(BaseModel):
-    time: float = Field(..., description="Pause time in seconds")
-    image_id: str = Field(..., description="Image ID for the guide")
-    position: PositionConfig
-
-
-class CTAButton(BaseModel):
-    type: Literal["fulltime", "endscreen"] = Field(..., description="Button display type")
-    image_id: str = Field(..., description="Image ID for the CTA button")
-    position: PositionConfig
-    start_time: Optional[float] = Field(None, description="Start time for endscreen buttons (seconds)")
-
-
-class BannerConfig(BaseModel):
-    left_image_id: Optional[str] = None
-    right_image_id: Optional[str] = None
+    project_id: Optional[str] = None
+    project_dir: Optional[str] = None
+    is_new_project: Optional[bool] = None
 
 
 class GenerateRequest(BaseModel):
-    video_id: str = Field(..., description="Video file ID")
-    pause_frames: List[PauseFrame] = Field(default_factory=list)
-    cta_buttons: List[CTAButton] = Field(default_factory=list)
-    banners: Optional[BannerConfig] = None
-    platform: Platform = Field(..., description="Target platform")
+    video_id: str
+    project_id: str
+    pause_frames: List[PauseFrame] = []
+    cta_buttons: List[CTAButton] = []
+    banners: Optional[Union[List[Banner], BannerConfig]] = None
+    platform: Platform = Platform.GOOGLE
+    language: Language = Language.ENGLISH
+    version: str = "v1"
+    app_name: str = "PlayableAds"
 
 
 class GenerateResponse(BaseModel):
@@ -71,3 +96,4 @@ class GenerateResponse(BaseModel):
     file_url: Optional[str] = None
     preview_url: Optional[str] = None
     error: Optional[str] = None 
+    project_id: Optional[str] = None 

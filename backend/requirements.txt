@@ -6,3 +6,4 @@ aiofiles
 python-dotenv
 jinja2
 pillow
+opencv-python

@@ -33,9 +33,9 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
 }) => {
   const [currentButton, setCurrentButton] = useState<CTAButton | null>(null);
   const [buttonType, setButtonType] = useState<"fulltime" | "endscreen">("fulltime");
-  const [position, setPosition] = useState({ left: 50, top: 80 });
-  const [scale, setScale] = useState<number>(1); // 添加缩放状态
-  const [startTime, setStartTime] = useState<number>(0);
+  const [position, setPosition] = useState({ left: 50, top: 50 });
+  const [scale, setScale] = useState(0.2); // 20% of screen width
+  const [startTime, setStartTime] = useState(0.1);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLandscape, setIsLandscape] = useState(false); // 添加横竖屏状态
@@ -114,7 +114,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
   // 处理缩放滑块变化
   const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
-    setScale(value);
+    setScale(value / 100); // Convert percentage to scale factor
   };
 
   // 切换横竖屏
@@ -128,12 +128,67 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     setIsDragging(true);
     
     const containerRect = containerRef.current.getBoundingClientRect();
+    const videoElement = videoRef.current;
+    
+    // 获取视频的实际显示尺寸和位置
+    let videoRect = {
+      left: containerRect.left,
+      top: containerRect.top,
+      width: containerRect.width,
+      height: containerRect.height,
+      right: containerRect.right,
+      bottom: containerRect.bottom,
+      x: containerRect.x,
+      y: containerRect.y
+    };
+    
+    if (videoElement) {
+      const videoWidth = videoElement.videoWidth;
+      const videoHeight = videoElement.videoHeight;
+      
+      if (videoWidth && videoHeight) {
+        // 计算视频在容器中的实际显示区域
+        const containerAspect = containerRect.width / containerRect.height;
+        const videoAspect = videoWidth / videoHeight;
+        
+        if (containerAspect > videoAspect) {
+          // 视频高度填满容器，宽度居中
+          const displayedVideoWidth = containerRect.height * videoAspect;
+          const horizontalPadding = (containerRect.width - displayedVideoWidth) / 2;
+          videoRect = {
+            left: containerRect.left + horizontalPadding,
+            top: containerRect.top,
+            width: displayedVideoWidth,
+            height: containerRect.height,
+            right: containerRect.left + horizontalPadding + displayedVideoWidth,
+            bottom: containerRect.top + containerRect.height,
+            x: containerRect.left + horizontalPadding,
+            y: containerRect.top
+          };
+        } else {
+          // 视频宽度填满容器，高度居中
+          const displayedVideoHeight = containerRect.width / videoAspect;
+          const verticalPadding = (containerRect.height - displayedVideoHeight) / 2;
+          videoRect = {
+            left: containerRect.left,
+            top: containerRect.top + verticalPadding,
+            width: containerRect.width,
+            height: displayedVideoHeight,
+            right: containerRect.left + containerRect.width,
+            bottom: containerRect.top + verticalPadding + displayedVideoHeight,
+            x: containerRect.left,
+            y: containerRect.top + verticalPadding
+          };
+        }
+      }
+    }
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!containerRef.current) return;
       
-      const x = ((moveEvent.clientX - containerRect.left) / containerRect.width) * 100;
-      const y = ((moveEvent.clientY - containerRect.top) / containerRect.height) * 100;
+      // 计算鼠标位置相对于视频区域的百分比
+      const x = ((moveEvent.clientX - videoRect.left) / videoRect.width) * 100;
+      const y = ((moveEvent.clientY - videoRect.top) / videoRect.height) * 100;
       
       setPosition({
         left: Math.max(0, Math.min(100, x)),
@@ -167,15 +222,16 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       setUploading(true);
 
       // Create form data for upload
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "image");
-      formData.append("step", "cta");
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+      uploadFormData.append("type", "image");
+      uploadFormData.append("step", "cta_buttons");
+      uploadFormData.append("project_id", formData.project_id); // 添加项目ID
 
       // Upload to backend API
       const response = await fetch("http://localhost:8080/api/upload", {
         method: "POST",
-        body: formData,
+        body: uploadFormData,
       });
 
       if (!response.ok) {
@@ -197,7 +253,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
           url: `http://localhost:8080${data.url}`,
         },
         position: { ...position },
-        scale: 1, // 默认缩放比例
+        scale: 0.2, // 20% of screen width
       };
 
       if ((selectedButtonType || buttonType) === "endscreen") {
@@ -232,6 +288,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     maxFiles: 1,
   });
 
+  // 创建一个新的CTA按钮
   const addCTAButton = () => {
     if (!currentButton) {
       setError("Please upload a CTA button image first");
@@ -427,16 +484,15 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
                 style={{
                   left: `${position.left}%`,
                   top: `${position.top}%`,
-                  transform: `translate(-50%, -50%) scale(${scale})`,
-                  maxWidth: '30%',
-                  maxHeight: '30%'
+                  transform: `translate(-50%, -50%)`,
+                  width: `${scale * 100}%`,
                 }}
                 onMouseDown={startDrag}
               >
                 <img 
                   src={currentButton.image.url} 
                   alt="CTA Button" 
-                  className="max-w-full max-h-full pointer-events-none"
+                  className="w-full h-full object-contain pointer-events-none"
                 />
               </div>
             )}
@@ -614,7 +670,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
                     <img
                       src={currentButton.image.url}
                       alt="Button preview"
-                      className="max-h-full max-w-full object-contain"
+                      className="w-full h-full object-contain"
                     />
                   </div>
                   <div className="flex-grow">
@@ -751,21 +807,19 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Button Scale
+                    Button Width (% of screen)
                   </label>
                   <input
                     type="range"
-                    min="0.1"
-                    max="2"
-                    step="0.1"
-                    value={scale}
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={scale * 100} // Convert scale back to percentage for input
                     onChange={handleScaleChange}
                     className="w-full"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Smaller (0.1x)</span>
-                    <span className="font-medium">{scale.toFixed(1)}x</span>
-                    <span>Larger (2x)</span>
+                  <div className="flex justify-center text-xs text-gray-500 mt-1">
+                    <span className="font-medium">{Math.round(scale * 100)}%</span>
                   </div>
                 </div>
               </div>
@@ -824,7 +878,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
                         <img
                           src={button.image.url}
                           alt="CTA Button"
-                          className="max-h-full max-w-full object-contain"
+                          className="w-full h-full object-contain"
                         />
                       </div>
                       <div className="ml-3 flex-grow min-w-0">
@@ -838,7 +892,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
                               : `Appears at ${button.startTime.toFixed(1)}s • `
                             : "Shows until End Screen button appears • "}
                           {button.position.left.toFixed(0)}% left, {button.position.top.toFixed(0)}% top
-                          {button.scale ? ` • ${button.scale.toFixed(1)}x` : ''}
+                          {button.scale ? ` • Width: ${Math.round(button.scale * 100)}%` : ''}
                         </p>
                       </div>
                       <div className="flex space-x-1">

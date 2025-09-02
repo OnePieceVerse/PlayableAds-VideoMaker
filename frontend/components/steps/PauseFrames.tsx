@@ -31,9 +31,9 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
   prevStep,
 }) => {
   const [currentFrame, setCurrentFrame] = useState<PauseFrame | null>(null);
-  const [pauseTime, setPauseTime] = useState<number>(0);
-  const [position, setPosition] = useState({ left: 20, top: 20 });
-  const [scale, setScale] = useState<number>(1); // 添加缩放状态
+  const [pauseTime, setPauseTime] = useState(0);
+  const [position, setPosition] = useState({ left: 50, top: 50 });
+  const [scale, setScale] = useState(0.2); // 20% of screen width
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLandscape, setIsLandscape] = useState(false); // 添加横竖屏状态
@@ -121,7 +121,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
   // 处理缩放滑块变化
   const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
-    setScale(value);
+    setScale(value / 100); // Convert percentage to scale factor
   };
 
   // 切换横竖屏
@@ -136,12 +136,67 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     setIsDragging(true);
     
     const containerRect = containerRef.current.getBoundingClientRect();
+    const videoElement = videoRef.current;
+    
+    // 获取视频的实际显示尺寸和位置
+    let videoRect = {
+      left: containerRect.left,
+      top: containerRect.top,
+      width: containerRect.width,
+      height: containerRect.height,
+      right: containerRect.right,
+      bottom: containerRect.bottom,
+      x: containerRect.x,
+      y: containerRect.y
+    };
+    
+    if (videoElement) {
+      const videoWidth = videoElement.videoWidth;
+      const videoHeight = videoElement.videoHeight;
+      
+      if (videoWidth && videoHeight) {
+        // 计算视频在容器中的实际显示区域
+        const containerAspect = containerRect.width / containerRect.height;
+        const videoAspect = videoWidth / videoHeight;
+        
+        if (containerAspect > videoAspect) {
+          // 视频高度填满容器，宽度居中
+          const displayedVideoWidth = containerRect.height * videoAspect;
+          const horizontalPadding = (containerRect.width - displayedVideoWidth) / 2;
+          videoRect = {
+            left: containerRect.left + horizontalPadding,
+            top: containerRect.top,
+            width: displayedVideoWidth,
+            height: containerRect.height,
+            right: containerRect.left + horizontalPadding + displayedVideoWidth,
+            bottom: containerRect.top + containerRect.height,
+            x: containerRect.left + horizontalPadding,
+            y: containerRect.top
+          };
+        } else {
+          // 视频宽度填满容器，高度居中
+          const displayedVideoHeight = containerRect.width / videoAspect;
+          const verticalPadding = (containerRect.height - displayedVideoHeight) / 2;
+          videoRect = {
+            left: containerRect.left,
+            top: containerRect.top + verticalPadding,
+            width: containerRect.width,
+            height: displayedVideoHeight,
+            right: containerRect.left + containerRect.width,
+            bottom: containerRect.top + verticalPadding + displayedVideoHeight,
+            x: containerRect.left,
+            y: containerRect.top + verticalPadding
+          };
+        }
+      }
+    }
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!containerRef.current) return;
       
-      const x = ((moveEvent.clientX - containerRect.left) / containerRect.width) * 100;
-      const y = ((moveEvent.clientY - containerRect.top) / containerRect.height) * 100;
+      // 计算鼠标位置相对于视频区域的百分比
+      const x = ((moveEvent.clientX - videoRect.left) / videoRect.width) * 100;
+      const y = ((moveEvent.clientY - videoRect.top) / videoRect.height) * 100;
       
       setPosition({
         left: Math.max(0, Math.min(100, x)),
@@ -175,16 +230,17 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       setError(null);
       setUploading(true);
 
-      // Create form data for upload
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "image");
-      formData.append("step", "pause");
+      // 添加文件到FormData
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", acceptedFiles[0]);
+      uploadFormData.append("type", "image");
+      uploadFormData.append("step", "pause_frames");
+      uploadFormData.append("project_id", formData.project_id);
 
       // Upload to backend API
       const response = await fetch("http://localhost:8080/api/upload", {
         method: "POST",
-        body: formData,
+        body: uploadFormData,
       });
 
       if (!response.ok) {
@@ -217,7 +273,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             url: `http://localhost:8080${data.url}`,
           },
           position: { ...position },
-          scale: scale
+          scale: 0.2, // 20% of screen width
         };
         setCurrentFrame(newFrame);
       }
@@ -284,8 +340,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       setConfirmAction(() => () => {
         addPauseFrame();
         // 重置位置和缩放
-        setPosition({ left: 20, top: 20 });
-        setScale(1);
+        setPosition({ left: 50, top: 50 });
+        setScale(0.2);
         
         // 暂停视频
         if (videoRef.current) {
@@ -307,8 +363,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     }
     
     // 重置位置和缩放
-    setPosition({ left: 20, top: 20 });
-    setScale(1);
+    setPosition({ left: 50, top: 50 });
+    setScale(0.2);
     
     // 暂停视频
     if (videoRef.current) {
@@ -525,16 +581,15 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                 style={{
                   left: `${position.left}%`,
                   top: `${position.top}%`,
-                  transform: `translate(-50%, -50%) scale(${scale})`,
-                  maxWidth: '30%',
-                  maxHeight: '30%'
+                  transform: `translate(-50%, -50%)`,
+                  width: `${scale * 100}%`,
                 }}
                 onMouseDown={startDrag}
               >
                 <img 
                   src={currentFrame.image.url} 
                   alt="Guide" 
-                  className="max-w-full max-h-full pointer-events-none"
+                  className="pointer-events-none w-full h-full object-contain"
                 />
               </div>
             )}
@@ -546,16 +601,15 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                 style={{
                   left: `${position.left}%`,
                   top: `${position.top}%`,
-                  transform: `translate(-50%, -50%) scale(${scale})`,
-                  maxWidth: '30%',
-                  maxHeight: '30%'
+                  transform: `translate(-50%, -50%)`,
+                  width: `${scale * 100}%`,
                 }}
                 onMouseDown={startDrag}
               >
                 <img 
                   src={editingFrame.image.url} 
                   alt="Guide" 
-                  className="max-w-full max-h-full pointer-events-none"
+                  className="pointer-events-none w-full h-full object-contain"
                 />
               </div>
             )}
@@ -628,25 +682,23 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             {/* 添加图片缩放控制 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Image Scale
+                Image Width (% of screen)
                 {!currentFrame && !editingFrame && (
-                  <span className="text-xs text-gray-500 ml-2">(Upload an image first to adjust scale)</span>
+                  <span className="text-xs text-gray-500 ml-2">(Upload an image first to adjust width)</span>
                 )}
               </label>
               <input
                 type="range"
-                min="0.1"
-                max="2"
-                step="0.1"
-                value={scale}
+                min="0"
+                max="100"
+                step="1"
+                value={scale * 100} // Convert scale factor back to percentage for input
                 onChange={handleScaleChange}
                 className={`w-full ${!currentFrame && !editingFrame ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={!currentFrame && !editingFrame}
               />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Smaller (0.1x)</span>
-                <span className="font-medium">{scale.toFixed(1)}x</span>
-                <span>Larger (2x)</span>
+              <div className="flex justify-center text-xs text-gray-500">
+                <span className="font-medium">{Math.round(scale * 100)}%</span>
               </div>
             </div>
           </div>
@@ -733,7 +785,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                       <img
                         src={frame.image.url}
                         alt="Frame preview"
-                        className="max-h-full max-w-full object-contain"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                     <div className="ml-3 flex-grow min-w-0">
@@ -842,7 +894,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                       <img
                         src={(currentFrame || editingFrame)?.image.url}
                         alt="Guide preview"
-                        className="max-h-full max-w-full object-contain"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                     <div className="flex-grow min-w-0">
@@ -973,7 +1025,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                         <img
                           src={frame.image.url}
                           alt="Guide"
-                          className="max-h-full max-w-full object-contain"
+                          className="w-full h-full object-contain"
                         />
                       </div>
                       <div className="ml-3 flex-grow min-w-0">
@@ -1041,8 +1093,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   setShowConfirmDialog(false);
                   setConfirmAction(null);
                   // 重置位置和缩放
-                  setPosition({ left: 20, top: 20 });
-                  setScale(1);
+                  setPosition({ left: 50, top: 50 });
+                  setScale(0.2);
                   
                   // 暂停视频
                   if (videoRef.current) {

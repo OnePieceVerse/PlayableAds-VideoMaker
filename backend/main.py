@@ -2,7 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+import sys
 from dotenv import load_dotenv
+
+# 添加当前目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 加载环境变量
 load_dotenv()
@@ -23,11 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 挂载静态文件
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# 挂载projects目录
+app.mount("/projects", StaticFiles(directory="projects"), name="projects")
 
 # 导入路由
-from app.api import upload, generate
+from backend.app.api import upload, generate
 
 # 注册路由
 app.include_router(upload.router, prefix="/api", tags=["upload"])

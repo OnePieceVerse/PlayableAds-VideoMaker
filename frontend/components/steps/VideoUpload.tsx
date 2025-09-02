@@ -18,6 +18,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
@@ -58,16 +59,17 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
         });
       }, 100);
 
-      // Create form data for upload
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "video");
-      formData.append("step", "video");
+      // 添加文件到FormData
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", acceptedFiles[0]);
+      uploadFormData.append("type", "video");
+      uploadFormData.append("step", "video_upload");
+      // 不传递project_id，让后端自动创建
 
       // Upload to backend API
       const response = await fetch("http://localhost:8080/api/upload", {
         method: "POST",
-        body: formData,
+        body: uploadFormData,
       });
 
       clearInterval(interval);
@@ -83,11 +85,19 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
         throw new Error(data.error || "Failed to upload video");
       }
 
+      // 保存项目ID（后端自动创建）
+      if (data.project_id) {
+        setProjectId(data.project_id);
+        updateFormData("project_id", data.project_id);
+      }
+
       // Update form data with video information
       updateFormData("video", {
         id: data.file_id,
         url: `http://localhost:8080${data.url}`,
         metadata: data.metadata,
+        name: data.file_id,
+        originalName: acceptedFiles[0].name
       });
 
       // 根据视频宽高设置方向
@@ -112,24 +122,50 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'video/*': ['.mp4', '.webm', '.ogg']
+      "video/*": []
     },
-    disabled: uploading,
     maxFiles: 1,
+    disabled: uploading,
   });
 
   const handleContinue = () => {
     if (formData.video) {
-      // 保存当前方向设置到formData
-      updateFormData("videoOrientation", isLandscape ? "landscape" : "portrait");
+      // 更新视频方向
+      updateFormData("video", {
+        ...formData.video,
+        type: isLandscape ? "landscape" : "portrait",
+      });
       nextStep();
-    } else {
-      setError("Please upload a video first");
     }
   };
 
   const toggleOrientation = () => {
     setIsLandscape(!isLandscape);
+  };
+
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.error("Video error:", e);
+    setError("Video failed to load. Please try uploading again.");
+  };
+
+  const handleVideoLoadStart = () => {
+    console.log("Video load started");
+  };
+
+  const handleVideoCanPlay = () => {
+    console.log("Video can play");
+  };
+
+  const handleVideoLoadedData = () => {
+    console.log("Video data loaded");
+  };
+
+  const handleVideoSeeked = () => {
+    if (videoRef.current) {
+      const { videoWidth, videoHeight } = videoRef.current;
+      // 如果宽度大于高度，则为横屏，否则为竖屏
+      setIsLandscape(videoWidth > videoHeight);
+    }
   };
 
   return (
@@ -186,6 +222,11 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
               <p className="text-sm text-gray-500 mt-2">
                 Supported formats: MP4, WebM, OGG
               </p>
+              {projectId && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Project ID: {projectId}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -236,6 +277,23 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
               src={formData.video.url}
               className="w-full h-full object-contain"
               controls
+              onSeeked={handleVideoSeeked}
+              onLoadedMetadata={handleVideoSeeked}
+              onError={handleVideoError}
+              onLoadStart={handleVideoLoadStart}
+              onCanPlay={handleVideoCanPlay}
+              onLoadedData={handleVideoLoadedData}
+              playsInline
+              preload="metadata"
+              crossOrigin="anonymous"
+              autoPlay={false}
+              loop={false}
+              width="100%"
+              height="100%"
+              poster=""
+              disablePictureInPicture
+              disableRemotePlayback
+              style={{ display: 'block' }}
             />
           </div>
           

@@ -81,7 +81,8 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       const uploadData = new FormData();
       uploadData.append("file", file);
       uploadData.append("type", "image");
-      uploadData.append("step", "banner");
+      uploadData.append("step", "banner_images");
+      uploadData.append("project_id", formData.project_id);
       uploadData.append("position", position);
 
       // Upload to backend API

@@ -15,14 +15,14 @@ export default function Home() {
                 </svg>
               </div>
               <h1 className="text-5xl lg:text-7xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-6">
-                Playable Ads Maker
-              </h1>
+          Playable Ads Maker
+        </h1>
               <p className="text-xl lg:text-2xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
                 Transform your app marketing with interactive playable ads. 
                 <span className="font-semibold text-blue-600"> Create, customize, and deploy</span> engaging ads that convert.
-              </p>
-            </div>
-            
+        </p>
+      </div>
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
               <Link 
                 href="/create" 

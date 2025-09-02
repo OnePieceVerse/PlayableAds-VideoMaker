@@ -7,21 +7,47 @@ import asyncio
 import subprocess
 import json
 from app.models.schemas import FileType
+import cv2
+import numpy as np
 
-# 支持的文件类型
-ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg"]
-ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+# 允许的文件类型
+ALLOWED_VIDEO_TYPES = [
+    "video/mp4", 
+    "video/webm", 
+    "video/ogg",
+    "video/quicktime",  # .mov
+    "video/x-msvideo",  # .avi
+    "video/x-matroska"  # .mkv
+]
+
+ALLOWED_IMAGE_TYPES = [
+    "image/jpeg", 
+    "image/png", 
+    "image/gif", 
+    "image/webp",
+    "image/svg+xml",
+    "image/bmp"
+]
 
 def validate_file_type(file: UploadFile, file_type: FileType) -> bool:
     """
-    验证上传的文件类型
+    验证文件类型是否符合要求
     """
     content_type = file.content_type
+    file_extension = Path(file.filename).suffix.lower()
+    
+    print(f"Validating file: {file.filename}, content_type: {content_type}, extension: {file_extension}")
     
     if file_type == FileType.VIDEO:
-        return content_type in ALLOWED_VIDEO_TYPES
+        if content_type and content_type in ALLOWED_VIDEO_TYPES:
+            return True
+        video_extensions = ['.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.flv']
+        return file_extension in video_extensions
     elif file_type == FileType.IMAGE:
-        return content_type in ALLOWED_IMAGE_TYPES
+        if content_type and content_type in ALLOWED_IMAGE_TYPES:
+            return True
+        image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg']
+        return file_extension in image_extensions
     
     return False
 
