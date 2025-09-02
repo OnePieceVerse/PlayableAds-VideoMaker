@@ -43,96 +43,57 @@ async def generate_ad(
         # 使用request中的project_id
         output_id = request.project_id
         
-        # 生成HTML文件
-        output_path = await generate_ad_html(request, output_id)
-        file_url = f"/projects/{output_path.parent.name}/{output_path.name}"
+        # 处理platforms参数
+        platforms = request.platforms
         
-        # 获取预览URL
-        preview_url = None
+        # 如果包含"all"，则生成所有平台
+        if Platform.ALL in platforms:
+            platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN]
         
-        # 如果是"all"平台，找到第一个平台的HTML文件用于预览
-        if request.platform == Platform.ALL:
-            # 查找项目目录
-            project_dir = PROJECTS_DIR / output_id
-            
-            if project_dir.exists():
-                # 首先尝试查找Facebook平台的HTML文件（优先使用Facebook，因为它是HTML格式）
-                for file in project_dir.iterdir():
-                    if file.suffix == ".html" and "facebook" in file.name.lower():
-                        preview_url = f"/projects/{project_dir.name}/{file.name}"
-                        print(f"Found Facebook preview file: {file.name}")
-                        break
-                
-                # 如果没有找到Facebook文件，尝试查找AppLovin文件
-                if not preview_url:
-                    for file in project_dir.iterdir():
-                        if file.suffix == ".html" and "applovin" in file.name.lower():
-                            preview_url = f"/projects/{project_dir.name}/{file.name}"
-                            print(f"Found AppLovin preview file: {file.name}")
-                            break
-                
-                # 如果仍然没有找到，尝试查找任何HTML文件
-                if not preview_url:
-                    for file in project_dir.iterdir():
-                        if file.suffix == ".html":
-                            preview_url = f"/projects/{project_dir.name}/{file.name}"
-                            print(f"Found generic HTML preview file: {file.name}")
-                            break
-                            
-                # 如果仍然没有找到，尝试查找预览目录中的文件
-                if not preview_url:
-                    preview_dir = project_dir / "preview"
-                    if preview_dir.exists():
-                        html_files = list(preview_dir.glob("*.html"))
-                        if html_files:
-                            preview_url = f"/projects/{project_dir.name}/preview/{html_files[0].name}"
-                            print(f"Found preview directory file: {html_files[0].name}")
-            
-            print(f"All Platforms preview_url: {preview_url}")
-
+        # 确保至少有一个平台
+        if not platforms:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "At least one platform must be selected"}
+            )
         
-        # 如果是Google平台，需要找到对应的HTML文件用于预览
-        elif request.platform == Platform.GOOGLE:
-            # 查找项目目录
-            project_dir = PROJECTS_DIR / output_id
+        # 生成所有选定平台的HTML文件
+        output_paths = []
+        for platform in platforms:
+            # 创建平台特定的请求
+            platform_request = GenerateRequest(
+                video_id=request.video_id,
+                project_id=request.project_id,
+                pause_frames=request.pause_frames,
+                cta_buttons=request.cta_buttons,
+                banners=request.banners,
+                platforms=[platform],  # 单个平台
+                language=request.language,
+                version=request.version,
+                app_name=request.app_name
+            )
             
-            if project_dir.exists():
-                # 首先查找预览目录中的HTML文件
-                preview_dir = project_dir / "preview"
-                if preview_dir.exists():
-                    html_files = list(preview_dir.glob("*.html"))
-                    if html_files:
-                        preview_url = f"/projects/{project_dir.name}/preview/{html_files[0].name}"
-                        print(f"Found Google preview file: {html_files[0].name}")
-                
-                # 如果没有找到预览文件，尝试查找任何包含google的HTML文件
-                if not preview_url:
-                    for file in project_dir.iterdir():
-                        if file.suffix == ".html" and "google" in file.name.lower():
-                            preview_url = f"/projects/{project_dir.name}/{file.name}"
-                            print(f"Found Google HTML file: {file.name}")
-                            break
-            
-            print(f"Google platform preview_url: {preview_url}")
+            # 生成HTML文件
+            output_path = await generate_ad_html(platform_request, output_id)
+            output_paths.append(output_path)
         
-        # 其他平台（Facebook, AppLovin）直接使用生成的HTML文件
+        # 如果只有一个平台，使用该平台的输出路径
+        if len(output_paths) == 1:
+            output_path = output_paths[0]
+            file_url = f"/projects/{output_path.parent.name}/{output_path.name}"
+            preview_url = file_url if output_path.suffix == ".html" else None
         else:
-            # 如果输出文件是HTML，直接用作预览
-            if output_path.suffix == ".html":
-                preview_url = file_url
-                print(f"Using direct output file for preview: {output_path.name}")
-            # 如果输出文件不是HTML（可能是ZIP），尝试在项目目录中查找对应平台的HTML文件
-            else:
-                project_dir = PROJECTS_DIR / output_id
-                if project_dir.exists():
-                    platform_name = request.platform.value.lower()
-                    for file in project_dir.iterdir():
-                        if file.suffix == ".html" and platform_name in file.name.lower():
-                            preview_url = f"/projects/{project_dir.name}/{file.name}"
-                            print(f"Found {platform_name} HTML file for preview: {file.name}")
-                            break
+            # 如果有多个平台，创建一个ZIP文件包含所有平台的文件
+            zip_path = PROJECTS_DIR / output_id / f"{output_id}_all_platforms.zip"
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for path in output_paths:
+                    zipf.write(path, path.name)
             
-            print(f"{request.platform} platform preview_url: {preview_url}")
+            file_url = f"/projects/{output_id}/{zip_path.name}"
+            
+            # 使用第一个HTML文件作为预览
+            preview_path = next((p for p in output_paths if p.suffix == ".html"), None)
+            preview_url = f"/projects/{output_id}/{preview_path.name}" if preview_path else None
         
         return {
             "success": True,

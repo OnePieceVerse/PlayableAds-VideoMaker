@@ -154,30 +154,36 @@ def generate_videos_js(partner_dir: Path, video_files: list) -> str:
     # 生成JavaScript代码
     return f"window.PLAYABLE_VIDEOS = {json.dumps(videos_dict, indent=2)};"
 
-async def generate_ad_html(request: GenerateRequest, output_id: str, output_dir: Path = None) -> Path:
+async def generate_ad_html(request: GenerateRequest, output_id: str) -> Path:
     """
-    生成HTML格式的广告文件，使用template v1的格式
+    生成广告HTML文件
     """
-    # 使用request.project_id查找项目目录
-    project_dir = PROJECTS_DIR / request.project_id
-    
-    if not project_dir.exists():
-        print(f"Warning: Project directory not found with project_id: {request.project_id}")
-        # 尝试使用output_id查找
-        project_files_dir = PROJECTS_DIR / output_id
+    try:
+        # 确保项目目录存在
+        project_dir = PROJECTS_DIR / output_id
+        os.makedirs(project_dir, exist_ok=True)
         
-        if project_files_dir.exists():
-            # 如果直接找到了output_id对应的目录，使用它
-            project_dir = project_files_dir
+        # 获取视频文件
+        video_file = find_uploaded_file(PROJECTS_DIR, request.video_id, FileType.VIDEO)
+        if not video_file:
+            raise ValueError(f"Video file not found: {request.video_id}")
+        
+        # 获取平台
+        platform = request.platforms[0] if request.platforms else Platform.GOOGLE
+        
+        # 根据平台选择模板
+        if platform == Platform.GOOGLE:
+            return await generate_google_ad(request, output_id, project_dir, video_file)
+        elif platform == Platform.FACEBOOK:
+            return await generate_facebook_ad(request, output_id, project_dir, video_file)
+        elif platform == Platform.APPLOVIN:
+            return await generate_applovin_ad(request, output_id, project_dir, video_file)
         else:
-            # 否则在projects目录中查找包含output_id的目录
-            for existing_dir in PROJECTS_DIR.iterdir():
-                if existing_dir.is_dir() and output_id in existing_dir.name:
-                    project_dir = existing_dir
-                    break
-    
-    if not project_dir or not project_dir.exists():
-        raise Exception(f"Project directory not found for ID: {output_id} or project_id: {request.project_id}")
+            raise ValueError(f"Unsupported platform: {platform}")
+            
+    except Exception as e:
+        print(f"Error generating ad HTML: {str(e)}")
+        raise
     
     # 复制模板文件到项目目录（直接复制到根，不再使用 template/partners 结构）
     # 只复制不存在的文件，避免覆盖已修改的文件
@@ -779,3 +785,185 @@ def get_file_extension(project_dir: Path, file_id: str) -> str:
     # 如果仍然找不到文件，返回默认后缀
     print(f"DEBUG: File with ID '{file_id}' not found in '{project_dir}', returning default extension")
     return ".png"  # Default to .png for images, .mp4 for videos if not found 
+async def generate_google_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
+    """
+    生成Google广告HTML文件
+    """
+    # 复制模板文件到项目目录
+    for src in TEMPLATE_DIR.glob('*'):
+        dst = project_dir / src.name
+        if not dst.exists():
+            if src.is_file():
+                shutil.copy2(src, dst)
+            elif src.is_dir():
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+    
+    # 收集项目目录中的文件
+    image_files = []
+    video_files = []
+    
+    # 从项目目录读取文件
+    for file_path in project_dir.iterdir():
+        if file_path.is_file():
+            file_name = file_path.name
+            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
+                video_files.append(file_name)
+            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
+                image_files.append(file_name)
+    
+    # 生成config.js文件
+    config_data = generate_config_js(request)
+    config_file = project_dir / "config.js"
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write(config_data)
+    
+    # 生成lang.js文件
+    lang_data = generate_lang_js(request.language)
+    lang_file = project_dir / "lang.js"
+    with open(lang_file, "w", encoding="utf-8") as f:
+        f.write(lang_data)
+    
+    # 生成images.js和videos.js文件
+    print(f"image_files: {image_files}")
+    print(f"video_files: {video_files}")
+    images_js_content = generate_images_js(project_dir, image_files)
+    videos_js_content = generate_videos_js(project_dir, video_files)
+    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
+        f.write(images_js_content)
+    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
+        f.write(videos_js_content)
+    
+    # 执行构建
+    build_result = run_build_script(
+        project_dir, 
+        Platform.GOOGLE, 
+        request.language,
+        request.version,
+        request.app_name
+    )
+    if not build_result["success"]:
+        raise Exception(f"Build failed for Google platform: {build_result['error']}")
+    
+    return build_result["output_file"]
+
+async def generate_facebook_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
+    """
+    生成Facebook广告HTML文件
+    """
+    # 复制模板文件到项目目录
+    for src in TEMPLATE_DIR.glob('*'):
+        dst = project_dir / src.name
+        if not dst.exists():
+            if src.is_file():
+                shutil.copy2(src, dst)
+            elif src.is_dir():
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+    
+    # 收集项目目录中的文件
+    image_files = []
+    video_files = []
+    
+    # 从项目目录读取文件
+    for file_path in project_dir.iterdir():
+        if file_path.is_file():
+            file_name = file_path.name
+            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
+                video_files.append(file_name)
+            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
+                image_files.append(file_name)
+    
+    # 生成config.js文件
+    config_data = generate_config_js(request)
+    config_file = project_dir / "config.js"
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write(config_data)
+    
+    # 生成lang.js文件
+    lang_data = generate_lang_js(request.language)
+    lang_file = project_dir / "lang.js"
+    with open(lang_file, "w", encoding="utf-8") as f:
+        f.write(lang_data)
+    
+    # 生成images.js和videos.js文件
+    print(f"image_files: {image_files}")
+    print(f"video_files: {video_files}")
+    images_js_content = generate_images_js(project_dir, image_files)
+    videos_js_content = generate_videos_js(project_dir, video_files)
+    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
+        f.write(images_js_content)
+    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
+        f.write(videos_js_content)
+    
+    # 执行构建
+    build_result = run_build_script(
+        project_dir, 
+        Platform.FACEBOOK, 
+        request.language,
+        request.version,
+        request.app_name
+    )
+    if not build_result["success"]:
+        raise Exception(f"Build failed for Facebook platform: {build_result['error']}")
+    
+    return build_result["output_file"]
+
+async def generate_applovin_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
+    """
+    生成AppLovin广告HTML文件
+    """
+    # 复制模板文件到项目目录
+    for src in TEMPLATE_DIR.glob('*'):
+        dst = project_dir / src.name
+        if not dst.exists():
+            if src.is_file():
+                shutil.copy2(src, dst)
+            elif src.is_dir():
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+    
+    # 收集项目目录中的文件
+    image_files = []
+    video_files = []
+    
+    # 从项目目录读取文件
+    for file_path in project_dir.iterdir():
+        if file_path.is_file():
+            file_name = file_path.name
+            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
+                video_files.append(file_name)
+            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
+                image_files.append(file_name)
+    
+    # 生成config.js文件
+    config_data = generate_config_js(request)
+    config_file = project_dir / "config.js"
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write(config_data)
+    
+    # 生成lang.js文件
+    lang_data = generate_lang_js(request.language)
+    lang_file = project_dir / "lang.js"
+    with open(lang_file, "w", encoding="utf-8") as f:
+        f.write(lang_data)
+    
+    # 生成images.js和videos.js文件
+    print(f"image_files: {image_files}")
+    print(f"video_files: {video_files}")
+    images_js_content = generate_images_js(project_dir, image_files)
+    videos_js_content = generate_videos_js(project_dir, video_files)
+    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
+        f.write(images_js_content)
+    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
+        f.write(videos_js_content)
+    
+    # 执行构建
+    build_result = run_build_script(
+        project_dir, 
+        Platform.APPLOVIN, 
+        request.language,
+        request.version,
+        request.app_name
+    )
+    if not build_result["success"]:
+        raise Exception(f"Build failed for AppLovin platform: {build_result['error']}")
+    
+    return build_result["output_file"]

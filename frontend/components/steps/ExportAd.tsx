@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // 定义类型
-type Platform = "google" | "facebook" | "applovin" | "all" | "";
+type PlatformOption = "google" | "facebook" | "applovin" | "all";
 type Language = "en" | "zh" | "";
 
 interface FileInfo {
@@ -33,7 +33,7 @@ interface StepProps {
 }
 
 const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) => {
-  const [platform, setPlatform] = useState<Platform>("");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformOption[]>([]);
   const [language, setLanguage] = useState<Language>("");
   const [version, setVersion] = useState<string>("v1");
   const [appName, setAppName] = useState<string>("PlayableAds");
@@ -145,10 +145,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
     setIsLandscape(!isLandscape);
   };
 
-  const handlePlatformChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setPlatform(e.target.value as Platform);
-    setResult(null);
-  };
+
 
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setLanguage(e.target.value as Language);
@@ -165,16 +162,45 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
     setResult(null);
   };
 
-  const generateAd = async () => {
+  
+  const handlePlatformChange = (platform: PlatformOption) => {
+    setSelectedPlatforms(prev => {
+      if (platform === "all") {
+        // 如果选择"all"，清空其他选择
+        return ["all"];
+      } else {
+        // 如果选择具体平台，移除"all"并切换当前平台
+        const filtered = prev.filter(p => p !== "all");
+        if (filtered.includes(platform)) {
+          return filtered.filter(p => p !== platform);
+        } else {
+          return [...filtered, platform];
+        }
+      }
+    });
+    setResult(null);
+  };
+
+  const isPlatformSelected = (platform: PlatformOption) => {
+    return selectedPlatforms.includes(platform);
+  };
+const generateAd = async () => {
     try {
       setErrorMessage(null);
       setGenerating(true);
+      
+      // 验证必要参数
+      if (!formData.video || selectedPlatforms.length === 0 || language === "") {
+        setErrorMessage("Please select video, platform(s), and language before generating.");
+        setGenerating(false);
+        return;
+      }
       
       // 准备请求数据
       const requestData = {
         video_id: formData.video?.id || "",
         project_id: formData.project_id,
-        platform: platform,
+        platforms: selectedPlatforms, // 使用 selectedPlatforms 数组
         language: language,
         version: version,
         app_name: appName,
@@ -272,14 +298,18 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
 
   const downloadAd = () => {
     try {
-      // 获取原始文件路径
-      const originalPath = result?.file_url || '';
-      
-      // 构建下载URL
-      const downloadUrl = `http://localhost:8080/api/download-file?file_path=${encodeURIComponent(originalPath.replace(/^\//, ''))}`;
-      
-      // 在新窗口中打开下载URL
-      window.open(downloadUrl, '_blank');
+      // 检查是否是ZIP文件（多平台）
+      if (result?.file_url && result.file_url.includes(".zip")) {
+        // 对于ZIP文件，使用项目ID和文件名
+        const fileName = result.file_url.split("/").pop();
+        const downloadUrl = `http://localhost:8080/api/download/${formData.project_id}/${fileName}`;
+        window.open(downloadUrl, "_blank");
+      } else {
+        // 对于单个HTML文件，使用原来的逻辑
+        const originalPath = result?.file_url || "";
+        const downloadUrl = `http://localhost:8080/api/download-file?file_path=${encodeURIComponent(originalPath.replace(/^\//, ""))}`;
+        window.open(downloadUrl, "_blank");
+      }
     } catch (error) {
       setErrorMessage("Failed to download file. Please try again.");
     }
@@ -390,23 +420,53 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
           )}
 
           <div className="mb-6">
-            <label htmlFor="platform" className="block text-sm font-medium text-gray-700 mb-1">
-              Target Platform <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Target Platforms <span className="text-red-500">*</span>
             </label>
-            <select
-              id="platform"
-              value={platform}
-              onChange={handlePlatformChange}
-              className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select Platform</option>
-              <option value="all">All Platforms</option>
-              <option value="google">Google Ads</option>
-              <option value="facebook">Facebook Ads</option>
-              <option value="applovin">AppLovin</option>
-            </select>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handlePlatformChange("all")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("all")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                All Platforms
+              </button>
+              <button
+                onClick={() => handlePlatformChange("google")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("google")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                Google Ads
+              </button>
+              <button
+                onClick={() => handlePlatformChange("facebook")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("facebook")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                Facebook Ads
+              </button>
+              <button
+                onClick={() => handlePlatformChange("applovin")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("applovin")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                AppLovin
+              </button>
+            </div>
             <p className="text-sm text-gray-500 mt-1">
-              Select the platform where your ad will be displayed
+              Select one or more platforms where your ad will be displayed
             </p>
           </div>
 
@@ -519,9 +579,9 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
           <div className="mb-6">
             <button
               onClick={generateAd}
-              disabled={generating || !formData.video || result !== null || platform === "" || language === ""}
+              disabled={generating || !formData.video || selectedPlatforms.length === 0 || language === ""}
               className={`w-full py-3 rounded-md font-medium ${
-                generating || !formData.video || result !== null || platform === "" || language === ""
+                generating || !formData.video || selectedPlatforms.length === 0 || language === ""
                   ? "bg-gray-400 cursor-not-allowed" 
                   : "bg-blue-600 hover:bg-blue-700 text-white"
               }`}
@@ -535,7 +595,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
                   Generating...
                 </span>
               ) : (
-                <>Generate {platform === "all" ? "All Ads" : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Ad`}</>
+                <>Generate {selectedPlatforms.length === 1 && selectedPlatforms[0] === "all" ? "All Ads" : selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")}</>
               )}
             </button>
             
@@ -547,7 +607,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
                     <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    Ad generated successfully! You can preview it in the left panel.
+                    Ad generated successfully for {selectedPlatforms.length === 1 && selectedPlatforms[0] === "all" ? "All Platforms" : selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")}! You can preview it in the left panel.
                   </p>
                 </div>
                 
@@ -558,7 +618,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
                   <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                   </svg>
-                  Download {platform === "all" ? "All Platforms" : platform.charAt(0).toUpperCase() + platform.slice(1)} Ad ({appName})
+                  Download {selectedPlatforms.length === 1 && selectedPlatforms[0] === "all" ? "All Platforms" : selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")} Ad ({appName})
                 </button>
               </div>
             )}

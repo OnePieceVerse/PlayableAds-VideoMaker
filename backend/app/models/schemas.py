@@ -85,7 +85,7 @@ class GenerateRequest(BaseModel):
     pause_frames: List[PauseFrame] = []
     cta_buttons: List[CTAButton] = []
     banners: Optional[Union[List[Banner], BannerConfig]] = None
-    platform: Platform = Platform.GOOGLE
+    platforms: List[Platform] = [Platform.GOOGLE]  # 修改为platforms列表
     language: Language = Language.ENGLISH
     version: str = "v1"
     app_name: str = "PlayableAds"
