@@ -309,13 +309,14 @@ def generate_config_js(request: GenerateRequest) -> str:
     
     # 创建交互点配置
     interaction_points = []
+    click_image = 'click_area.png'
     for i, frame in enumerate(request.pause_frames):
         image_ext = get_file_extension(project_dir, frame.image_id) if project_dir else ".png"
         interaction_point = {
             "id": f"interaction_{i + 1}",
                 "time": frame.time,
             "duration": 0,
-            "buttonImage": f"{frame.image_id}{image_ext}",
+            "buttonImage": f"{click_image}",
             "buttonEffect": "scale",
             "buttonSize": {
                 "landscape": {"width": frame.scale},
@@ -723,6 +724,7 @@ window.addEventListener('load', function() {
         output_html.write_text(html_content, encoding="utf-8")
         
         output_file = output_html
+        preview_file = None
         
         if platform == Platform.GOOGLE:
             # 为Google平台创建一个预览目录，保存HTML文件用于预览
@@ -730,6 +732,7 @@ window.addEventListener('load', function() {
             os.makedirs(preview_dir, exist_ok=True)
             preview_html = preview_dir / f"{base_name}.html"
             shutil.copy2(output_html, preview_html)
+            preview_file = preview_html
             
             # 创建ZIP文件
             zip_file = project_dir / f"{base_name}.zip"
@@ -738,7 +741,11 @@ window.addEventListener('load', function() {
             output_html.unlink()
             output_file = zip_file
         
-        return {"success": True, "output_file": output_file}
+        return {
+            "success": True, 
+            "output_file": output_file,
+            "preview_file": preview_file
+        }
     except Exception as e:
         return {"success": False, "error": f"Build failed: {str(e)}"}
 
@@ -844,6 +851,11 @@ async def generate_google_ad(request: GenerateRequest, output_id: str, project_d
     if not build_result["success"]:
         raise Exception(f"Build failed for Google platform: {build_result['error']}")
     
+    # 如果有预览文件，优先使用预览文件
+    if "preview_file" in build_result and build_result["preview_file"]:
+        return build_result["preview_file"]
+    
+    # 否则使用输出文件
     return build_result["output_file"]
 
 async def generate_facebook_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:

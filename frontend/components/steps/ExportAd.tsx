@@ -306,9 +306,26 @@ const generateAd = async () => {
         window.open(downloadUrl, "_blank");
       } else {
         // 对于单个HTML文件，使用原来的逻辑
+        // 确保使用file_url而不是preview_url
         const originalPath = result?.file_url || "";
-        const downloadUrl = `http://localhost:8080/api/download-file?file_path=${encodeURIComponent(originalPath.replace(/^\//, ""))}`;
-        window.open(downloadUrl, "_blank");
+        
+        // 检查是否是Google平台，如果是，需要特殊处理
+        if (selectedPlatforms.includes("google") && selectedPlatforms.length === 1) {
+          // 对于Google平台，文件URL应该指向ZIP文件
+          const projectId = formData.project_id;
+          const safeAppName = encodeURIComponent(appName);
+          const versionStr = encodeURIComponent(version);
+          const lang = encodeURIComponent(language || "en");
+          
+          // 构建ZIP文件名
+          const zipFileName = `${safeAppName}-google-${lang}-${versionStr}.zip`;
+          const downloadUrl = `http://localhost:8080/api/download/${projectId}/${zipFileName}`;
+          window.open(downloadUrl, "_blank");
+        } else {
+          // 对于其他平台，使用原始file_url
+          const downloadUrl = `http://localhost:8080/api/download-file?file_path=${encodeURIComponent(originalPath.replace(/^\//, ""))}`;
+          window.open(downloadUrl, "_blank");
+        }
       }
     } catch (error) {
       setErrorMessage("Failed to download file. Please try again.");

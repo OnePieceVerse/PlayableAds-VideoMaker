@@ -59,6 +59,7 @@ async def generate_ad(
         
         # 生成所有选定平台的HTML文件
         output_paths = []
+        preview_paths = []  # 新增：存储预览文件路径
         for platform in platforms:
             # 创建平台特定的请求
             platform_request = GenerateRequest(
@@ -76,12 +77,26 @@ async def generate_ad(
             # 生成HTML文件
             output_path = await generate_ad_html(platform_request, output_id)
             output_paths.append(output_path)
+            
+            # 检查是否有预览文件（特别是对于Google平台）
+            if platform == Platform.GOOGLE:
+                preview_dir = PROJECTS_DIR / output_id / "preview"
+                if preview_dir.exists():
+                    preview_files = list(preview_dir.glob("*.html"))
+                    if preview_files:
+                        preview_paths.append(preview_files[0])
         
         # 如果只有一个平台，使用该平台的输出路径
         if len(output_paths) == 1:
             output_path = output_paths[0]
             file_url = f"/projects/{output_path.parent.name}/{output_path.name}"
-            preview_url = file_url if output_path.suffix == ".html" else None
+            
+            # 如果是Google平台且有预览文件，使用预览文件URL
+            if platforms[0] == Platform.GOOGLE and preview_paths:
+                preview_path = preview_paths[0]
+                preview_url = f"/projects/{preview_path.parent.parent.name}/{preview_path.parent.name}/{preview_path.name}"
+            else:
+                preview_url = file_url if output_path.suffix == ".html" else None
         else:
             # 如果有多个平台，创建一个ZIP文件包含所有平台的文件
             zip_path = PROJECTS_DIR / output_id / f"{output_id}_all_platforms.zip"
@@ -91,9 +106,14 @@ async def generate_ad(
             
             file_url = f"/projects/{output_id}/{zip_path.name}"
             
-            # 使用第一个HTML文件作为预览
-            preview_path = next((p for p in output_paths if p.suffix == ".html"), None)
-            preview_url = f"/projects/{output_id}/{preview_path.name}" if preview_path else None
+            # 如果有预览文件（优先使用Google平台的预览文件）
+            if preview_paths:
+                preview_path = preview_paths[0]
+                preview_url = f"/projects/{preview_path.parent.parent.name}/{preview_path.parent.name}/{preview_path.name}"
+            else:
+                # 使用第一个HTML文件作为预览
+                preview_path = next((p for p in output_paths if p.suffix == ".html"), None)
+                preview_url = f"/projects/{output_id}/{preview_path.name}" if preview_path else None
         
         return {
             "success": True,
@@ -116,13 +136,35 @@ async def download_file(project_id: str, file_name: str):
     file_path = PROJECTS_DIR / project_id / file_name
     
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        # 如果文件不存在，检查是否是Google广告的ZIP文件，可能需要重新生成
+        if file_name.endswith(".zip") and "google" in file_name:
+            # 尝试查找对应的HTML文件
+            html_files = list((PROJECTS_DIR / project_id).glob("*.html"))
+            google_html = next((f for f in html_files if "google" in f.name), None)
+            
+            if google_html:
+                # 创建ZIP文件
+                with zipfile.ZipFile(file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    zipf.write(google_html, google_html.name)
+            else:
+                raise HTTPException(status_code=404, detail="Google ad HTML file not found")
+        else:
+            raise HTTPException(status_code=404, detail="File not found")
+    
+    # 设置响应头，强制下载
+    headers = {
+        "Content-Disposition": f'attachment; filename="{file_name}"'
+    }
+    
+    # 确定Content-Type
+    content_type = "application/zip" if file_path.suffix == ".zip" else "application/octet-stream"
     
     return FileResponse(
         path=file_path,
         filename=file_name,
-        media_type="application/octet-stream"
-    ) 
+        media_type=content_type,
+        headers=headers
+    )
 
 @router.get("/download-ad", response_class=FileResponse)
 async def download_ad(

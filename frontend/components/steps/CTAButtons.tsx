@@ -245,16 +245,31 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     
     setIsDragging(true);
     
+    // 记录初始点击位置与当前按钮位置的偏移量
+    const initialX = e.clientX;
+    const initialY = e.clientY;
+    const initialLeft = position.left;
+    const initialTop = position.top;
+    
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!videoRect) return;
       
-      // 计算鼠标位置相对于视频区域的百分比
-      const x = ((moveEvent.clientX - videoRect.left) / videoRect.width) * 100;
-      const y = ((moveEvent.clientY - videoRect.top) / videoRect.height) * 100;
+      // 计算鼠标移动的距离（相对于初始点击位置）
+      const deltaX = moveEvent.clientX - initialX;
+      const deltaY = moveEvent.clientY - initialY;
       
+      // 将移动距离转换为百分比
+      const deltaXPercent = (deltaX / videoRect.width) * 100;
+      const deltaYPercent = (deltaY / videoRect.height) * 100;
+      
+      // 基于初始位置和移动距离计算新位置
+      const newLeft = initialLeft + deltaXPercent;
+      const newTop = initialTop + deltaYPercent;
+      
+      // 限制在0-100范围内
       setPosition({
-        left: Math.max(0, Math.min(100, x)),
-        top: Math.max(0, Math.min(100, y)),
+        left: Math.max(0, Math.min(100, newLeft)),
+        top: Math.max(0, Math.min(100, newTop)),
       });
     };
     
