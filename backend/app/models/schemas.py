@@ -56,6 +56,7 @@ class Platform(str, Enum):
     GOOGLE = "google"
     FACEBOOK = "facebook"
     APPLOVIN = "applovin"
+    MOLOCO = "moloco"
     ALL = "all"
 
 class Language(str, Enum):

@@ -178,6 +178,8 @@ async def generate_ad_html(request: GenerateRequest, output_id: str) -> Path:
             return await generate_facebook_ad(request, output_id, project_dir, video_file)
         elif platform == Platform.APPLOVIN:
             return await generate_applovin_ad(request, output_id, project_dir, video_file)
+        elif platform == Platform.MOLOCO:
+            return await generate_moloco_ad(request, output_id, project_dir, video_file)
         else:
             raise ValueError(f"Unsupported platform: {platform}")
             
@@ -233,7 +235,7 @@ async def generate_ad_html(request: GenerateRequest, output_id: str) -> Path:
     # 执行构建（直接在Python中实现原build.sh逻辑）
     if request.platform == Platform.ALL:
         # 为所有平台生成HTML文件
-        platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN]
+        platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO]
         all_platform_files = []
         
         for platform in platforms:
@@ -651,6 +653,8 @@ def run_build_script(project_dir: Path, platform: Platform, language: str, versi
             cta_code = "window.FbPlayableAd.onCTAClick();"
         elif platform == Platform.APPLOVIN:
             cta_code = "window.mraid.open();"
+        elif platform == Platform.MOLOCO:
+            cta_code = "window.FbPlayableAd.onCTAClick();"
         html_content = html_content.replace('window.location.href = config.cta_start_button.url;', cta_code)
 
         # 设置语言
@@ -704,6 +708,11 @@ window.addEventListener('load', function() {
                 f'<head>\n    <meta name="fb:language" content="{language}">'
             )
         elif platform == Platform.APPLOVIN:
+            html_content = html_content.replace(
+                '<head>',
+                f'<head>\n    <meta name="mraid:language" content="{language}">'
+            )
+        elif platform == Platform.MOLOCO:
             html_content = html_content.replace(
                 '<head>',
                 f'<head>\n    <meta name="mraid:language" content="{language}">'
@@ -977,5 +986,67 @@ async def generate_applovin_ad(request: GenerateRequest, output_id: str, project
     )
     if not build_result["success"]:
         raise Exception(f"Build failed for AppLovin platform: {build_result['error']}")
+    
+    return build_result["output_file"]
+
+
+async def generate_moloco_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
+    """
+    生成Moloco广告HTML文件
+    """
+    # 复制模板文件到项目目录
+    for src in TEMPLATE_DIR.glob('*'):
+        dst = project_dir / src.name
+        if not dst.exists():
+            if src.is_file():
+                shutil.copy2(src, dst)
+            elif src.is_dir():
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+    
+    # 收集项目目录中的文件
+    image_files = []
+    video_files = []
+    
+    # 从项目目录读取文件
+    for file_path in project_dir.iterdir():
+        if file_path.is_file():
+            file_name = file_path.name
+            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
+                video_files.append(file_name)
+            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
+                image_files.append(file_name)
+    
+    # 生成config.js文件
+    config_data = generate_config_js(request)
+    config_file = project_dir / "config.js"
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write(config_data)
+    
+    # 生成lang.js文件
+    lang_data = generate_lang_js(request.language)
+    lang_file = project_dir / "lang.js"
+    with open(lang_file, "w", encoding="utf-8") as f:
+        f.write(lang_data)
+    
+    # 生成images.js和videos.js文件
+    print(f"image_files: {image_files}")
+    print(f"video_files: {video_files}")
+    images_js_content = generate_images_js(project_dir, image_files)
+    videos_js_content = generate_videos_js(project_dir, video_files)
+    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
+        f.write(images_js_content)
+    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
+        f.write(videos_js_content)
+    
+    # 执行构建
+    build_result = run_build_script(
+        project_dir, 
+        Platform.MOLOCO, 
+        request.language,
+        request.version,
+        request.app_name
+    )
+    if not build_result["success"]:
+        raise Exception(f"Build failed for Moloco platform: {build_result['error']}")
     
     return build_result["output_file"]

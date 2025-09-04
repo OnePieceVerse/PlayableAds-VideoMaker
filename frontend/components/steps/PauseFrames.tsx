@@ -15,6 +15,10 @@ interface PauseFrame {
     top: number;
   };
   scale: number; // 添加缩放比例属性
+  buttonImage?: {  // 添加可选的按钮图片
+    id: string;
+    url: string;
+  };
 }
 
 interface PauseFramesProps {
@@ -35,6 +39,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
   const [position, setPosition] = useState({ left: 50, top: 50 });
   const [scale, setScale] = useState(0.2); // 20% of screen width
   const [uploading, setUploading] = useState(false);
+  const [buttonUploading, setButtonUploading] = useState(false); // 添加按钮图片上传状态
   const [error, setError] = useState<string | null>(null);
   const [isLandscape, setIsLandscape] = useState(false); // 添加横竖屏状态
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -362,12 +367,95 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     }
   };
 
+  // 按钮图片上传处理
+  const onButtonImageDrop = async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+
+    const file = acceptedFiles[0];
+    
+    // Check if file is an image
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload an image file for the button");
+      return;
+    }
+
+    try {
+      setError(null);
+      setButtonUploading(true);
+
+      // 添加文件到FormData
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", acceptedFiles[0]);
+      uploadFormData.append("type", "image");  // 使用后端支持的"image"类型
+      uploadFormData.append("step", "pause_frames");
+      uploadFormData.append("project_id", formData.project_id);
+      // 可以添加一个自定义字段来标识这是按钮图片
+      uploadFormData.append("image_usage", "button");  // 这个字段在后端可能会被忽略，但不会导致错误
+
+      // Upload to backend API
+      const response = await fetch("http://localhost:8080/api/upload", {
+        method: "POST",
+        body: uploadFormData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload button image");
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to upload button image");
+      }
+
+      // 更新当前帧或编辑中的帧
+      if (isEditing && editingFrame) {
+        const updatedFrame: PauseFrame = {
+          ...editingFrame,
+          buttonImage: {
+            id: data.file_id,
+            url: `http://localhost:8080${data.url}`,
+          }
+        };
+        setEditingFrame(updatedFrame);
+      } else if (currentFrame) {
+        const updatedFrame: PauseFrame = {
+          ...currentFrame,
+          buttonImage: {
+            id: data.file_id,
+            url: `http://localhost:8080${data.url}`,
+          }
+        };
+        setCurrentFrame(updatedFrame);
+      }
+      
+      setButtonUploading(false);
+    } catch (err: any) {
+      setError(err.message || "An error occurred during button image upload");
+      setButtonUploading(false);
+    }
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
     },
     disabled: uploading,
+    maxFiles: 1,
+  });
+
+  // 按钮图片的dropzone
+  const { 
+    getRootProps: getButtonRootProps, 
+    getInputProps: getButtonInputProps, 
+    isDragActive: isButtonDragActive 
+  } = useDropzone({
+    onDrop: onButtonImageDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+    },
+    disabled: buttonUploading,
     maxFiles: 1,
   });
 
@@ -393,7 +481,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       ...currentFrame,
       time: pauseTime,
       position: { ...position },
-      scale: scale
+      scale: scale,
+      // 如果没有buttonImage，则不包含此字段，后端将默认使用click_area.png
     };
 
     // 添加当前帧到列表
@@ -550,6 +639,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       time: pauseTime,
       position: { ...position },
       scale: scale
+      // buttonImage字段会被保留
     };
     
     // 更新帧列表
@@ -606,21 +696,20 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
   return (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800">
-          Add Pause Frames
-        </h2>
+        <h2 className="text-2xl font-semibold text-gray-800">Add Pause Frames</h2>
         <p className="text-gray-600">
-          Set points where the video will pause and show a guide image
+          Add frames that will pause the video at specific times
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 左侧：视频预览 */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-medium text-gray-800">Video</h3>
+            <h3 className="text-lg font-medium text-gray-800">Video Preview</h3>
             <button
               onClick={toggleOrientation}
-              className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors shadow-md"
+              className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
             >
               <svg
                 className="h-4 w-4 mr-1"
@@ -651,7 +740,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             <video
               ref={videoRef}
               src={formData.video.url}
-              className="w-full h-full object-contain pointer-events-none"
+              className="w-full h-full object-contain"
               onTimeUpdate={handleVideoTimeUpdate}
               onPause={handleVideoPause}
               onSeeked={handleVideoSeeked}
@@ -660,7 +749,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             {/* 当前帧预览 */}
             {currentFrame && videoRect && (
               <div
-                className={`absolute cursor-move ${isDragging ? 'pointer-events-none' : ''}`}
+                className={`absolute ${isDragging ? 'pointer-events-none' : 'cursor-move'}`}
                 style={{
                   left: `${position.left}%`,
                   top: `${position.top}%`,
@@ -680,7 +769,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             {/* 编辑中的帧预览 */}
             {isEditing && editingFrame && videoRect && (
               <div
-                className={`absolute cursor-move ${isDragging ? 'pointer-events-none' : ''}`}
+                className={`absolute ${isDragging ? 'pointer-events-none' : 'cursor-move'}`}
                 style={{
                   left: `${position.left}%`,
                   top: `${position.top}%`,
@@ -697,131 +786,17 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
               </div>
             )}
           </div>
-
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Pause Time (seconds)
-              </label>
-              <input
-                type="range"
-                min="0"
-                max={formData.video.metadata?.duration || 30}
-                step="0.1"
-                value={pauseTime}
-                onChange={handleTimeChange}
-                onMouseUp={handleTimeChangeEnd}
-                onTouchEnd={handleTimeChangeEnd}
-                className="w-full"
-              />
-              <div className="flex justify-between">
-                <span className="text-xs text-gray-500">0s</span>
-                <span className="text-xs text-gray-500 font-medium">
-                  {pauseTime.toFixed(1)}s
-                </span>
-                <span className="text-xs text-gray-500">
-                  {(formData.video.metadata?.duration || 30).toFixed(1)}s
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Left Position (%)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={position.left}
-                  onChange={(e) => handlePositionChange(e, "left")}
-                  className={`w-full ${!currentFrame && !editingFrame ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={!currentFrame && !editingFrame}
-                />
-                <div className="text-center text-xs text-gray-500 font-medium">
-                  {position.left.toFixed(0)}%
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Top Position (%)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={position.top}
-                  onChange={(e) => handlePositionChange(e, "top")}
-                  className={`w-full ${!currentFrame && !editingFrame ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={!currentFrame && !editingFrame}
-                />
-                <div className="text-center text-xs text-gray-500 font-medium">
-                  {position.top.toFixed(0)}%
-                </div>
-              </div>
-            </div>
-            
-            {/* 添加图片缩放控制 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Image Width (% of screen)
-                {!currentFrame && !editingFrame && (
-                  <span className="text-xs text-gray-500 ml-2">(Upload an image first to adjust width)</span>
-                )}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={scale * 100} // Convert scale factor back to percentage for input
-                onChange={handleScaleChange}
-                className={`w-full ${!currentFrame && !editingFrame ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={!currentFrame && !editingFrame}
-              />
-              <div className="flex justify-center text-xs text-gray-500">
-                <span className="font-medium">{Math.round(scale * 100)}%</span>
-              </div>
-            </div>
-          </div>
         </div>
 
+        {/* 右侧：帧配置和列表 */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-medium text-gray-800">
-              Pause Frames ({formData.pauseFrames.length})
-            </h3>
-          </div>
-          
           {/* 简化的操作区域 */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={createNewPauseFrame}
-                className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                <svg
-                  className="h-4 w-4 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-                Create New Frame
-              </button>
-              
-              {formData.pauseFrames.length > 0 && (
+          {!showFrameSelector && !showFrameEditor && !isEditing && (
+            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={showCopyFrameSelector}
-                  className="flex-1 flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  onClick={createNewPauseFrame}
+                  className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
                   <svg
                     className="h-4 w-4 mr-2"
@@ -834,21 +809,44 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                     />
                   </svg>
-                  Copy Frame
+                  Create New Frame
                 </button>
-              )}
+              
+                {formData.pauseFrames.length > 0 && (
+                  <button
+                    onClick={showCopyFrameSelector}
+                    className="flex-1 flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  >
+                    <svg
+                      className="h-4 w-4 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      />
+                    </svg>
+                    Copy Frame
+                  </button>
+                )}
+              </div>
+              
+              <p className="text-xs text-gray-600 mt-2 text-center">
+                {formData.pauseFrames.length === 0 
+                  ? "Click 'Create New Frame' to add your first pause frame"
+                  : "Create a new frame or copy settings from an existing frame"
+                }
+              </p>
             </div>
-            
-            <p className="text-xs text-gray-600 mt-2 text-center">
-              {formData.pauseFrames.length === 0 
-                ? "Click 'Create New Frame' to add your first pause frame"
-                : "Create a new frame or copy settings from an existing frame"
-              }
-            </p>
-          </div>
+          )}
 
           {/* 帧选择器 - 只在需要时显示 */}
           {showFrameSelector && (
@@ -908,12 +906,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
             </div>
           )}
           
-          {/* 图片上传区域 - 只在需要时显示 */}
+          {/* 图片上传和帧配置区域 - 只在需要时显示 */}
           {showFrameEditor && (
             <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-medium text-gray-800">
-                  {isEditing ? "Edit Frame Image" : "Upload Guide Image"}
+                  {isEditing ? "Edit Pause Frame" : "Create Pause Frame"}
                 </h4>
                 <button
                   onClick={() => {
@@ -928,59 +926,20 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   Cancel
                 </button>
               </div>
-              
-              <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                  isDragActive
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-300 hover:border-blue-400"
-                } ${uploading ? "opacity-75" : ""}`}
-              >
-                <input {...getInputProps()} />
-                <div className="space-y-2">
-                  <svg
-                    className="mx-auto h-8 w-8 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  {uploading ? (
-                    <p className="text-gray-700">Uploading image...</p>
-                  ) : (
-                    <p className="text-gray-700">
-                      {isDragActive
-                        ? "Drop the image here"
-                        : "Drag and drop your guide image here, or click to select"}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-500">
-                    Supported formats: PNG, JPG, GIF, WebP
-                  </p>
-                </div>
-              </div>
 
-              {/* 图片预览和信息 */}
+              {/* 帧预览 */}
               {(currentFrame || (isEditing && editingFrame)) && (
-                <div className="mt-4 bg-gray-50 rounded-lg p-4">
-                  <h5 className="text-sm font-medium text-gray-800 mb-3">Image Preview</h5>
-                  <div className="flex items-start space-x-4">
-                    <div className="h-20 w-20 flex-shrink-0 rounded overflow-hidden bg-gray-200 border border-gray-300 flex items-center justify-center">
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <h5 className="text-sm font-medium text-gray-800 mb-3">Frame Preview</h5>
+                  <div className="flex items-center space-x-4">
+                    <div className="h-16 w-16 flex-shrink-0 rounded overflow-hidden bg-gray-200 border border-gray-300 flex items-center justify-center">
                       <img
                         src={(currentFrame || editingFrame)?.image.url}
-                        alt="Guide preview"
+                        alt="Frame preview"
                         className="w-full h-full object-contain"
                       />
                     </div>
-                    <div className="flex-grow min-w-0">
+                    <div className="flex-grow">
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <p className="text-gray-500">Time:</p>
@@ -1005,52 +964,304 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   </div>
                 </div>
               )}
+              
+              {/* 配置选项 */}
+              <div className="space-y-4">
+                {/* 图片上传区域 */}
+                {!currentFrame && !editingFrame && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Frame Image
+                    </label>
+                    <div
+                      {...getRootProps()}
+                      className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                        isDragActive
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-300 hover:border-blue-400"
+                      } ${uploading ? "opacity-75" : ""}`}
+                    >
+                      <input {...getInputProps()} />
+                      <div className="space-y-2">
+                        <svg
+                          className="mx-auto h-8 w-8 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                        {uploading ? (
+                          <p className="text-gray-700">Uploading image...</p>
+                        ) : (
+                          <p className="text-gray-700">
+                            {isDragActive
+                              ? "Drop the image here"
+                              : "Drag and drop your guide image here, or click to select"}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          Supported formats: PNG, JPG, GIF, WebP
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 可选的Button Image组件 */}
+                {(currentFrame || editingFrame) && (
+                  <div className="mt-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Button Image (Optional)
+                      </label>
+                      <div className="text-xs text-blue-600">Continues playback on click</div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Add a button image to continue the playback flow. When users click on this button during the pause frame, the video will resume playing.
+                        {!currentFrame?.buttonImage && !editingFrame?.buttonImage && (
+                          <span className="block mt-1 text-gray-500 italic">
+                            If no button image is provided, a default "click_area.png" will be used.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* 显示已上传的按钮图片或上传区域 */}
+                    {(currentFrame?.buttonImage || (isEditing && editingFrame?.buttonImage)) ? (
+                      <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-12 w-12 flex-shrink-0 rounded overflow-hidden bg-gray-100 border border-gray-300 flex items-center justify-center">
+                            <img
+                              src={(currentFrame?.buttonImage || editingFrame?.buttonImage)?.url}
+                              alt="Button"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Button Image</p>
+                            <p className="text-xs text-gray-500">Custom button uploaded</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (isEditing && editingFrame) {
+                              // 移除编辑帧中的按钮图片
+                              const { buttonImage, ...rest } = editingFrame;
+                              setEditingFrame(rest as PauseFrame);
+                            } else if (currentFrame) {
+                              // 移除当前帧中的按钮图片
+                              const { buttonImage, ...rest } = currentFrame;
+                              setCurrentFrame(rest as PauseFrame);
+                            }
+                          }}
+                          className="px-3 py-1 text-xs text-red-600 hover:text-red-800 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div 
+                        {...getButtonRootProps()}
+                        className={`border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors ${
+                          isButtonDragActive ? 'bg-blue-50 border-blue-400' : ''
+                        } ${buttonUploading ? 'opacity-70' : ''}`}
+                      >
+                        <input {...getButtonInputProps()} />
+                        <svg
+                          className="mx-auto h-6 w-6 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                          />
+                        </svg>
+                        {buttonUploading ? (
+                          <p className="text-sm text-gray-600 mt-1">Uploading...</p>
+                        ) : (
+                          <p className="text-sm text-gray-600 mt-1">
+                            {isButtonDragActive 
+                              ? "Drop the button image here" 
+                              : "Click to upload a button image"}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          Recommended: "Continue", "Play", or "Next" styled buttons
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 时间控制 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pause Time (seconds)
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max={formData.video.metadata?.duration || 30}
+                    step="0.1"
+                    value={pauseTime}
+                    onChange={handleTimeChange}
+                    onInput={(e) => {
+                      // 实时更新视频位置
+                      if (videoRef.current) {
+                        const newTime = parseFloat((e.target as HTMLInputElement).value);
+                        videoRef.current.currentTime = newTime;
+                      }
+                    }}
+                    onMouseUp={handleTimeChangeEnd}
+                    onTouchEnd={handleTimeChangeEnd}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0s</span>
+                    <span className="font-medium">{pauseTime.toFixed(1)}s</span>
+                    <span>{(formData.video.metadata?.duration || 30).toFixed(1)}s</span>
+                  </div>
+                </div>
+
+                {/* 位置控制 */}
+                {(currentFrame || editingFrame) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Left Position (%)
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={position.left}
+                        onChange={(e) => handlePositionChange(e, "left")}
+                        className="w-full"
+                      />
+                      <div className="text-center text-xs text-gray-500 mt-1">
+                        {position.left.toFixed(0)}%
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Top Position (%)
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={position.top}
+                        onChange={(e) => handlePositionChange(e, "top")}
+                        className="w-full"
+                      />
+                      <div className="text-center text-xs text-gray-500 mt-1">
+                        {position.top.toFixed(0)}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 缩放控制 */}
+                {(currentFrame || editingFrame) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Frame Width (% of screen)
+                    </label>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      step="1"
+                      value={scale * 100}
+                      onChange={handleScaleChange}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>10%</span>
+                      <span className="font-medium">{Math.round(scale * 100)}%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 拖拽提示 */}
+                {(currentFrame || editingFrame) && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-md p-3">
+                    <p className="text-xs text-blue-700 flex items-center">
+                      <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      You can also position the frame by clicking and dragging it directly on the video preview.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {error && (
-                <div className="mt-3 bg-red-50 text-red-600 p-3 rounded-md text-center text-sm">
+                <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-md text-center text-sm">
                   {error}
                 </div>
               )}
 
               {/* 操作按钮 */}
-              <div className="mt-4 flex space-x-3">
+              <div className="mt-6">
                 {isEditing ? (
-                  <>
+                  <div className="flex space-x-3">
                     <button
                       onClick={saveEdit}
-                      className="flex-1 py-2 rounded-md font-medium bg-green-600 text-white hover:bg-green-700"
+                      className="flex-1 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700"
                     >
                       Save Changes
                     </button>
                     <button
                       onClick={cancelEdit}
-                      className="flex-1 py-2 rounded-md font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+                      className="flex-1 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
                     >
                       Cancel
                     </button>
-                  </>
+                  </div>
                 ) : (
                   <button
                     onClick={addPauseFrame}
                     disabled={!currentFrame || uploading}
-                    className={`flex-1 py-2 rounded-md font-medium ${
+                    className={`w-full py-3 rounded-lg font-medium ${
                       !currentFrame || uploading
                         ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                         : "bg-green-600 text-white hover:bg-green-700"
                     }`}
                   >
-                    {!currentFrame ? "Upload Image First" : "Add This Frame"}
+                    {!currentFrame ? "Upload Image First" : "Add Pause Frame"}
                   </button>
                 )}
               </div>
             </div>
           )}
 
-          {/* 已添加的帧列表 */}
+          {/* 已添加的帧列表 - 始终显示，不再受showFrameEditor条件影响 */}
           {formData.pauseFrames.length > 0 && (
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-800">Your Pause Frames</h4>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+              <h4 className="text-sm font-medium text-gray-800">Your Pause Frames ({formData.pauseFrames.length})</h4>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                 {formData.pauseFrames.map((frame: PauseFrame, index: number) => (
                   <div
                     key={frame.id}
@@ -1180,26 +1391,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   setCurrentFrame(null);
                   setShowConfirmDialog(false);
                   setConfirmAction(null);
-                  // 重置位置和缩放
-                  setPosition({ left: 50, top: 50 });
-                  setScale(0.2);
-                  
-                  // 暂停视频
-                  if (videoRef.current) {
-                    videoRef.current.pause();
-                  }
-                  
-                  // 清除编辑状态
-                  setIsEditing(false);
-                  setEditingFrame(null);
-                  
-                  // 显示帧编辑器
-                  setShowFrameEditor(true);
-                  
-                  // 清除错误
-                  setError(null);
                 }}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
               >
                 Discard
               </button>

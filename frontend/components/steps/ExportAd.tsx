@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // 定义类型
-type PlatformOption = "google" | "facebook" | "applovin" | "all";
+type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "all";
 type Language = "en" | "zh" | "";
 
 interface FileInfo {
@@ -309,16 +309,17 @@ const generateAd = async () => {
         // 确保使用file_url而不是preview_url
         const originalPath = result?.file_url || "";
         
-        // 检查是否是Google平台，如果是，需要特殊处理
-        if (selectedPlatforms.includes("google") && selectedPlatforms.length === 1) {
-          // 对于Google平台，文件URL应该指向ZIP文件
+        // 检查是否是Google或Moloco平台，如果是，需要特殊处理
+        if ((selectedPlatforms.includes("google") || selectedPlatforms.includes("moloco")) && selectedPlatforms.length === 1) {
+          // 对于Google和Moloco平台，文件URL应该指向ZIP文件
           const projectId = formData.project_id;
           const safeAppName = encodeURIComponent(appName);
           const versionStr = encodeURIComponent(version);
           const lang = encodeURIComponent(language || "en");
+          const platform = selectedPlatforms.includes("google") ? "google" : "moloco";
           
           // 构建ZIP文件名
-          const zipFileName = `${safeAppName}-google-${lang}-${versionStr}.zip`;
+          const zipFileName = `${safeAppName}-${platform}-${lang}-${versionStr}.zip`;
           const downloadUrl = `http://localhost:8080/api/download/${projectId}/${zipFileName}`;
           window.open(downloadUrl, "_blank");
         } else {
@@ -480,6 +481,16 @@ const generateAd = async () => {
                 }`}
               >
                 AppLovin
+              </button>
+              <button
+                onClick={() => handlePlatformChange("moloco")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("moloco")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                Moloco
               </button>
             </div>
             <p className="text-sm text-gray-500 mt-1">

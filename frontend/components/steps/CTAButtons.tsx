@@ -788,50 +788,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
 
               {/* 配置选项 */}
               <div className="space-y-4">
-                {/* 图片上传区域 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Button Image
-                  </label>
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                      isDragActive
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-300 hover:border-blue-400"
-                    } ${uploading ? "opacity-75" : ""}`}
-                  >
-                    <input {...getInputProps()} />
-                    <div className="space-y-2">
-                      <svg
-                        className="mx-auto h-6 w-6 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      {uploading ? (
-                        <p className="text-gray-700 text-sm">Uploading image...</p>
-                      ) : (
-                        <p className="text-gray-700 text-sm">
-                          {isDragActive
-                            ? "Drop the button image here"
-                            : "Drag and drop your button image here, or click to select"}
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-500">
-                        Supported formats: PNG, JPG, GIF, WebP
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                {/* 移除Button Image上传区域 */}
 
                 {(selectedButtonType || buttonType) === "endscreen" && (
                   <div>

@@ -48,7 +48,7 @@ async def generate_ad(
         
         # 如果包含"all"，则生成所有平台
         if Platform.ALL in platforms:
-            platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN]
+            platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO]
         
         # 确保至少有一个平台
         if not platforms:
@@ -101,7 +101,10 @@ async def generate_ad(
             # 如果有多个平台，创建一个ZIP文件包含所有平台的文件
             zip_path = PROJECTS_DIR / output_id / f"{output_id}_all_platforms.zip"
             with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for path in output_paths:
+                for i, path in enumerate(output_paths):
+                    platform = platforms[i]
+                    # 所有平台的文件都直接添加到ZIP中，保持原有格式
+                    # Google平台保持ZIP格式，其他平台保持HTML格式
                     zipf.write(path, path.name)
             
             file_url = f"/projects/{output_id}/{zip_path.name}"

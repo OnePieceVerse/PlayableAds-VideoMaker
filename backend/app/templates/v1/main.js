@@ -567,6 +567,8 @@ document.addEventListener('click', () => {
   const enableFirstClick = config.enableFirstClick !== false; // 默认为true
   
   if (!hasStarted && enableFirstClick) {
+    const guides = guideLayer.querySelectorAll('.button-image, .guide-image');
+    guides.forEach(el => el.remove());
     playVideo();
   }
 });
