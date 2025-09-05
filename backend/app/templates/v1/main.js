@@ -282,7 +282,14 @@ function createGuideElements(point) {
   }
 }
 function ctaClick() {
-  window.location.href = config.cta_start_button.url;
+  // 检查是否为TikTok平台
+  if (typeof ttClickTag !== 'undefined') {
+    console.log("Using TikTok click handler");
+    ttClickTag();
+  } else {
+    // 默认行为
+    window.location.href = config.cta_start_button.url;
+  }
 }
 
 // 创建CTA开始按钮，在视频开始时显示

@@ -48,7 +48,7 @@ async def generate_ad(
         
         # 如果包含"all"，则生成所有平台
         if Platform.ALL in platforms:
-            platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO]
+            platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO, Platform.TIKTOK]
         
         # 确保至少有一个平台
         if not platforms:
@@ -79,7 +79,7 @@ async def generate_ad(
             output_paths.append(output_path)
             
             # 检查是否有预览文件（特别是对于Google平台）
-            if platform == Platform.GOOGLE:
+            if platform == Platform.GOOGLE or platform == Platform.TIKTOK:
                 preview_dir = PROJECTS_DIR / output_id / "preview"
                 if preview_dir.exists():
                     preview_files = list(preview_dir.glob("*.html"))
@@ -92,7 +92,7 @@ async def generate_ad(
             file_url = f"/projects/{output_path.parent.name}/{output_path.name}"
             
             # 如果是Google平台且有预览文件，使用预览文件URL
-            if platforms[0] == Platform.GOOGLE and preview_paths:
+            if (platforms[0] == Platform.GOOGLE or platforms[0] == Platform.TIKTOK) and preview_paths:
                 preview_path = preview_paths[0]
                 preview_url = f"/projects/{preview_path.parent.parent.name}/{preview_path.parent.name}/{preview_path.name}"
             else:

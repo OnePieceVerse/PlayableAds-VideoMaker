@@ -79,9 +79,12 @@ async def get_file_metadata(file_path: Path, file_type: FileType) -> dict:
 async def get_video_metadata(file_path: Path) -> dict:
     """
     使用FFprobe获取视频元数据
-    如果FFprobe不可用，则返回基本信息
+    如果FFprobe不可用，则使用OpenCV获取基本信息
     """
-    metadata = {}
+    metadata = {
+        "size": os.path.getsize(file_path),
+        "format": Path(file_path).suffix.lstrip('.')
+    }
     
     try:
         # 尝试使用FFprobe
@@ -112,9 +115,25 @@ async def get_video_metadata(file_path: Path) -> dict:
             metadata["height"] = stream.get("height")
             metadata["duration"] = float(stream.get("duration", 0))
             metadata["codec"] = stream.get("codec_name")
+            
+            # 确保format字段存在
+            if not metadata.get("format") and metadata.get("codec"):
+                metadata["format"] = metadata["codec"]
     
     except Exception as e:
-        print(f"Error getting video metadata: {str(e)}")
-        # 如果FFprobe不可用，可以尝试其他方法或返回基本信息
+        print(f"Error getting video metadata with FFprobe: {str(e)}")
+        # 如果FFprobe不可用，尝试使用OpenCV
+        try:
+            cap = cv2.VideoCapture(str(file_path))
+            if cap.isOpened():
+                metadata["width"] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                metadata["height"] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                metadata["duration"] = float(cap.get(cv2.CAP_PROP_FRAME_COUNT)) / float(cap.get(cv2.CAP_PROP_FPS))
+                # 确保format字段存在
+                if not metadata.get("format"):
+                    metadata["format"] = Path(file_path).suffix.lstrip('.')
+                cap.release()
+        except Exception as cv_error:
+            print(f"Error getting video metadata with OpenCV: {str(cv_error)}")
     
     return metadata 

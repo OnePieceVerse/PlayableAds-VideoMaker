@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // 定义类型
-type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "all";
+type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "tiktok" | "all";
 type Language = "en" | "zh" | "";
 
 interface FileInfo {
@@ -94,10 +94,17 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
   const fetchFilesInfo = async () => {
     try {
       setLoadingFilesInfo(true);
+      // Check if project_id exists and is valid
+      if (!formData.project_id) {
+        console.log("No project_id available, skipping files info fetch");
+        setLoadingFilesInfo(false);
+        return;
+      }
+      
       const response = await fetch(`http://localhost:8080/api/project-files-info?project_id=${formData.project_id}`);
       
       if (!response.ok) {
-        throw new Error("Failed to fetch files info");
+        throw new Error(`Failed to fetch files info: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
@@ -106,10 +113,12 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
         const processedData = processFilesInfo(data);
         setFilesInfo(processedData);
       } else {
-        console.error("Error fetching files info:", data.error);
+        console.error("Error fetching files info:", data.error || "Unknown error");
       }
     } catch (error) {
       console.error("Error fetching files info:", error);
+      // Don't set error message in UI to avoid disrupting user experience
+      setFilesInfo(null);
     } finally {
       setLoadingFilesInfo(false);
     }
@@ -123,7 +132,11 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
     
     // 如果有project_id，获取文件大小信息
     if (formData.project_id) {
-      fetchFilesInfo();
+      try {
+        fetchFilesInfo();
+      } catch (error) {
+        console.error("Error in fetchFilesInfo effect:", error);
+      }
     }
   }, [formData.video, formData.project_id]);
 
@@ -196,6 +209,17 @@ const generateAd = async () => {
         return;
       }
       
+      // 获取视频方向
+      const videoElement = document.querySelector('video');
+      let videoOrientation = "portrait"; // 默认竖屏
+      
+      if (videoElement) {
+        // 如果视频宽度大于高度，则为横屏
+        if (videoElement.videoWidth > videoElement.videoHeight) {
+          videoOrientation = "landscape";
+        }
+      }
+      
       // 准备请求数据
       const requestData = {
         video_id: formData.video?.id || "",
@@ -204,6 +228,7 @@ const generateAd = async () => {
         language: language,
         version: version,
         app_name: appName,
+        video_orientation: videoOrientation, // 添加视频方向
         pause_frames: formData.pauseFrames?.length ? formData.pauseFrames.map((frame: any) => ({
           time: frame.time,
           image_id: frame.image?.id,
@@ -211,7 +236,13 @@ const generateAd = async () => {
             left: (frame.position?.left || 0) / 100,
             top: (frame.position?.top || 0) / 100
           },
-          scale: frame.scale || 1.0
+          scale: frame.scale || 1.0,
+          buttonImage_id: frame.buttonImage?.id || null,
+          buttonPosition: frame.buttonPosition ? {
+            left: (frame.buttonPosition.left || 0) / 100,
+            top: (frame.buttonPosition.top || 0) / 100
+          } : null,
+          buttonScale: frame.buttonScale || null
         })) : [],
         cta_buttons: formData.ctaButtons?.length ? formData.ctaButtons.map((button: any) => ({
           type: button.type || "endscreen",
@@ -309,14 +340,15 @@ const generateAd = async () => {
         // 确保使用file_url而不是preview_url
         const originalPath = result?.file_url || "";
         
-        // 检查是否是Google或Moloco平台，如果是，需要特殊处理
-        if ((selectedPlatforms.includes("google") || selectedPlatforms.includes("moloco")) && selectedPlatforms.length === 1) {
-          // 对于Google和Moloco平台，文件URL应该指向ZIP文件
+        // 检查是否是Google、Moloco或TikTok平台，如果是，需要特殊处理
+        if ((selectedPlatforms.includes("google") || selectedPlatforms.includes("moloco") || selectedPlatforms.includes("tiktok")) && selectedPlatforms.length === 1) {
+          // 对于Google、Moloco和TikTok平台，文件URL应该指向ZIP文件
           const projectId = formData.project_id;
           const safeAppName = encodeURIComponent(appName);
           const versionStr = encodeURIComponent(version);
           const lang = encodeURIComponent(language || "en");
-          const platform = selectedPlatforms.includes("google") ? "google" : "moloco";
+          const platform = selectedPlatforms.includes("google") ? "google" : 
+                           selectedPlatforms.includes("moloco") ? "moloco" : "tiktok";
           
           // 构建ZIP文件名
           const zipFileName = `${safeAppName}-${platform}-${lang}-${versionStr}.zip`;
@@ -417,6 +449,15 @@ const generateAd = async () => {
             )}
           </div>
 
+          {/* 添加Back按钮到视频下方 */}
+          <div className="flex justify-between mt-4">
+            <button
+              onClick={prevStep}
+              className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
+            >
+              Back
+            </button>
+          </div>
           {/* 预览区域结束 */}
         </div>
 
@@ -451,6 +492,11 @@ const generateAd = async () => {
                 }`}
               >
                 All Platforms
+                {isPlatformSelected("all") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
               </button>
               <button
                 onClick={() => handlePlatformChange("google")}
@@ -461,6 +507,11 @@ const generateAd = async () => {
                 }`}
               >
                 Google Ads
+                {isPlatformSelected("google") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
               </button>
               <button
                 onClick={() => handlePlatformChange("facebook")}
@@ -471,6 +522,11 @@ const generateAd = async () => {
                 }`}
               >
                 Facebook Ads
+                {isPlatformSelected("facebook") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
               </button>
               <button
                 onClick={() => handlePlatformChange("applovin")}
@@ -481,6 +537,11 @@ const generateAd = async () => {
                 }`}
               >
                 AppLovin
+                {isPlatformSelected("applovin") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
               </button>
               <button
                 onClick={() => handlePlatformChange("moloco")}
@@ -491,6 +552,26 @@ const generateAd = async () => {
                 }`}
               >
                 Moloco
+                {isPlatformSelected("moloco") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => handlePlatformChange("tiktok")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("tiktok")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                TikTok
+                {isPlatformSelected("tiktok") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
               </button>
             </div>
             <p className="text-sm text-gray-500 mt-1">
@@ -650,15 +731,6 @@ const generateAd = async () => {
                 </button>
               </div>
             )}
-          </div>
-
-          <div className="mt-4">
-            <button
-              onClick={prevStep}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-            >
-              Back
-            </button>
           </div>
         </div>
       </div>

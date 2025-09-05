@@ -1,11 +1,22 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="ad.size" content="width=320,height=480">
     <title data-lang="title"></title>
     <link rel="stylesheet" href="style.css">
+    <script>
+        // TikTok click handler
+        function ttClickTag() {
+            if (typeof mraid !== 'undefined') {
+                mraid.open(window.clickTag || "https://play.google.com/store/apps");
+            } else {
+                window.open(window.clickTag || "https://play.google.com/store/apps", "_blank");
+            }
+        }
+    </script>
 </head>
 
 <body>

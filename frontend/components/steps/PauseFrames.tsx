@@ -19,6 +19,11 @@ interface PauseFrame {
     id: string;
     url: string;
   };
+  buttonPosition?: { // 添加按钮位置
+    left: number;
+    top: number;
+  };
+  buttonScale?: number; // 添加按钮缩放比例
 }
 
 interface PauseFramesProps {
@@ -38,10 +43,13 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
   const [pauseTime, setPauseTime] = useState(0);
   const [position, setPosition] = useState({ left: 50, top: 50 });
   const [scale, setScale] = useState(0.2); // 20% of screen width
+  const [buttonPosition, setButtonPosition] = useState({ left: 50, top: 50 }); // 按钮位置
+  const [buttonScale, setButtonScale] = useState(0.2); // 按钮缩放比例
   const [uploading, setUploading] = useState(false);
   const [buttonUploading, setButtonUploading] = useState(false); // 添加按钮图片上传状态
   const [error, setError] = useState<string | null>(null);
   const [isLandscape, setIsLandscape] = useState(false); // 添加横竖屏状态
+  const [isDraggingButton, setIsDraggingButton] = useState(false); // 添加是否正在拖动按钮的状态
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -183,20 +191,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     };
   }, [calculateVideoRect]);
 
-  // Check if we have a video
-  if (!formData.video) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-red-500">Please upload a video first</p>
-        <button
-          onClick={prevStep}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md"
-        >
-          Go Back
-        </button>
-      </div>
-    );
-  }
+  // 当编辑状态变化时，确保视频暂停
+  useEffect(() => {
+    if (isEditing && videoRef.current) {
+      videoRef.current.pause();
+    }
+  }, [isEditing]);
 
   // 当视频播放时更新时间
   const handleVideoTimeUpdate = () => {
@@ -212,88 +212,338 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     }
   };
 
-  // 处理时间滑块变化
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    setPauseTime(newTime);
-    if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
-      // 拖动时暂停视频
-      videoRef.current.pause();
+  // 当视频被拖动后自动播放
+  const handleVideoSeeked = () => {
+    // 只有在非拖动滑块状态且非复制帧状态下才自动播放
+    // 编辑状态下不自动播放
+    if (!isDraggingSlider && !isCopyingFrame && !isEditing && videoRef.current && videoRef.current.paused) {
+      videoRef.current.play().catch(e => console.error('Auto play failed:', e));
     }
-    setIsDraggingSlider(true);
   };
 
-  // 处理时间滑块释放
-  const handleTimeChangeEnd = () => {
-    setIsDraggingSlider(false);
-  };
-
-  // 处理位置滑块变化
-  const handlePositionChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    axis: "left" | "top"
-  ) => {
-    const value = parseInt(e.target.value);
-    setPosition((prev) => ({
-      ...prev,
-      [axis]: value,
-    }));
-  };
-
-  // 处理缩放滑块变化
-  const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value);
-    setScale(value / 100); // Convert percentage to scale factor
-  };
-
-  // 切换横竖屏
-  const toggleOrientation = () => {
-    setIsLandscape(!isLandscape);
-  };
-
-  // 拖拽开始
-  const startDrag = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current || !videoRect) return;
+  // 创建新的暂停帧
+  const createNewPauseFrame = () => {
+    // 如果当前有未保存的帧，先提示保存
+    if (currentFrame && !isEditing) {
+      setConfirmAction(() => {
+        if (window.confirm("You have an unsaved pause frame. Would you like to save it first?")) {
+          addPauseFrame();
+          return () => {}; // No action needed after confirmation
+        } else {
+          setCurrentFrame(null);
+          return () => {}; // No action needed after cancellation
+        }
+      });
+    }
     
+    // 重置当前帧为null，以便开始新的帧
+    setCurrentFrame(null);
+    setIsEditing(false);
+    setEditingFrame(null);
+    setError(null);
+    setShowFrameEditor(true);
+  };
+
+  // 添加暂停帧
+  const addPauseFrame = () => {
+    if (!currentFrame) {
+      setError("Please upload a guide image first");
+      return;
+    }
+
+    // 检查是否存在相同暂停时间的帧
+    const existingFrameWithSameTime = formData.pauseFrames.find(
+      (frame: PauseFrame) => Math.abs(frame.time - pauseTime) < 0.1
+    );
+
+    if (existingFrameWithSameTime) {
+      setError(`A pause frame already exists at ${pauseTime.toFixed(1)}s. Please adjust the pause time to continue.`);
+      return;
+    }
+
+    // 更新当前帧的所有值，包括最新的暂停时间和按钮图片信息
+    const updatedFrame: PauseFrame = {
+      ...currentFrame,
+      time: pauseTime,
+      position: { ...position },
+      scale: scale,
+    };
+
+    // 如果有buttonImage，确保包含完整的buttonImage、buttonPosition和buttonScale
+    if (currentFrame.buttonImage) {
+      updatedFrame.buttonImage = {
+        id: currentFrame.buttonImage.id,
+        url: currentFrame.buttonImage.url
+      };
+      updatedFrame.buttonPosition = { ...buttonPosition };
+      updatedFrame.buttonScale = buttonScale;
+      
+      console.log("Adding frame with button image:", updatedFrame.buttonImage.id);
+    }
+
+    // 添加当前帧到列表
+    const updatedFrames = [...formData.pauseFrames, updatedFrame];
+    updateFormData("pauseFrames", updatedFrames);
+
+    // 重置当前帧
+    setCurrentFrame(null);
+    
+    // 隐藏帧编辑器
+    setShowFrameEditor(false);
+    
+    // 清除错误
+    setError(null);
+  };
+
+  // 复制指定的暂停帧
+  const copySpecifiedFrame = (frame: PauseFrame) => {
+    // 如果当前有未保存的帧，先提示保存
+    if (currentFrame && !isEditing) {
+      setConfirmAction(() => {
+        if (window.confirm("You have an unsaved pause frame. Would you like to save it first?")) {
+          addPauseFrame();
+          return () => {}; // No action needed after confirmation
+        } else {
+          setCurrentFrame(null);
+          return () => {}; // No action needed after cancellation
+        }
+      });
+    }
+
+    // 将视频定位到帧的时间点并确保暂停
+    if (videoRef.current) {
+      videoRef.current.currentTime = frame.time;
+      videoRef.current.pause();
+      // 禁止视频播放
+      // videoRef.current.controls = false;
+      
+      // 禁用视频的所有可能导致播放的事件
+      const disableVideo = () => {
+        videoRef.current?.pause();
+        return false;
+      };
+      
+      // 添加事件拦截
+      videoRef.current.onplay = disableVideo;
+      videoRef.current.onclick = disableVideo;
+      videoRef.current.onkeydown = disableVideo;
+    }
+    
+    // 设置编辑状态
+    setIsEditing(true);
+    setEditingFrame(frame);
+    setPauseTime(frame.time);
+    setPosition(frame.position);
+    setScale(frame.scale || 1);
+    setButtonPosition(frame.buttonPosition || { left: 50, top: 50 });
+    setButtonScale(frame.buttonScale || 0.2);
+    setShowFrameEditor(true);
+  };
+
+  // 移除暂停帧
+  const removePauseFrame = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this pause frame?")) {
+      updateFormData("pauseFrames", formData.pauseFrames.filter((frame: PauseFrame) => frame.id !== id));
+    }
+  };
+
+  // 保存编辑
+  const saveEdit = () => {
+    if (!editingFrame) return;
+
+    // 更新编辑中的帧
+    const updatedFrame: PauseFrame = {
+      ...editingFrame,
+      time: pauseTime,
+      position: { ...position },
+      scale: scale,
+    };
+    
+    // 如果有buttonImage，确保包含完整的buttonImage、buttonPosition和buttonScale
+    if (editingFrame.buttonImage) {
+      updatedFrame.buttonImage = {
+        id: editingFrame.buttonImage.id,
+        url: editingFrame.buttonImage.url
+      };
+      updatedFrame.buttonPosition = { ...buttonPosition };
+      updatedFrame.buttonScale = buttonScale;
+      
+      console.log("Saving frame with button image:", updatedFrame.buttonImage.id);
+    }
+    
+    // 更新帧列表
+    const updatedFrames = formData.pauseFrames.map((frame: PauseFrame) => 
+      frame.id === updatedFrame.id ? updatedFrame : frame
+    );
+    
+    updateFormData("pauseFrames", updatedFrames);
+    
+    // 重置编辑状态
+    setIsEditing(false);
+    setEditingFrame(null);
+    setShowFrameEditor(false);
+  };
+
+  // 取消编辑
+  const cancelEdit = () => {
+    if (confirmAction) {
+      confirmAction();
+    } else {
+      setIsEditing(false);
+      setEditingFrame(null);
+      setError(null);
+      setShowFrameEditor(false);
+      setShowFrameSelector(false);
+      setIsCopyingFrame(false);
+      setShowConfirmDialog(false);
+      setConfirmAction(null);
+    }
+  };
+
+  // 拖动视频区域
+  const startDrag = useCallback((e: React.MouseEvent) => {
+    // 移除 isEditing 检查，允许在编辑模式下拖动
+    if (isDraggingButton) return;
+
+    const rect = videoRect;
+    if (!rect) return;
+
+    const x = e.clientX - rect.x;
+    const y = e.clientY - rect.y;
+
+    const percentageX = (x / rect.width) * 100;
+    const percentageY = (y / rect.height) * 100;
+
+    setPosition({ left: percentageX, top: percentageY });
     setIsDragging(true);
     
-    // 记录初始点击位置与当前帧位置的偏移量
-    const initialX = e.clientX;
-    const initialY = e.clientY;
-    const initialLeft = position.left;
-    const initialTop = position.top;
-    
+    // 添加鼠标移动和鼠标释放事件监听
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!videoRect) return;
+      if (!rect) return;
       
-      // 计算鼠标移动的距离（相对于初始点击位置）
-      const deltaX = moveEvent.clientX - initialX;
-      const deltaY = moveEvent.clientY - initialY;
+      const newX = moveEvent.clientX - rect.x;
+      const newY = moveEvent.clientY - rect.y;
       
-      // 将移动距离转换为百分比
-      const deltaXPercent = (deltaX / videoRect.width) * 100;
-      const deltaYPercent = (deltaY / videoRect.height) * 100;
+      const newPercentageX = (newX / rect.width) * 100;
+      const newPercentageY = (newY / rect.height) * 100;
       
-      // 基于初始位置和移动距离计算新位置
-      const newLeft = initialLeft + deltaXPercent;
-      const newTop = initialTop + deltaYPercent;
-      
-      // 限制在0-100范围内
       setPosition({
-        left: Math.max(0, Math.min(100, newLeft)),
-        top: Math.max(0, Math.min(100, newTop)),
+        left: Math.max(0, Math.min(100, newPercentageX)),
+        top: Math.max(0, Math.min(100, newPercentageY))
       });
     };
     
     const handleMouseUp = () => {
       setIsDragging(false);
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
     
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    e.preventDefault();
+    e.stopPropagation();
+  }, [isDraggingButton, videoRect]);
+
+  // 拖动按钮图片
+  const startButtonDrag = useCallback((e: React.MouseEvent) => {
+    // 移除 isEditing 检查，允许在编辑模式下拖动
+    if (isDragging) return;
+
+    const rect = videoRect;
+    if (!rect) return;
+
+    const x = e.clientX - rect.x;
+    const y = e.clientY - rect.y;
+
+    const percentageX = (x / rect.width) * 100;
+    const percentageY = (y / rect.height) * 100;
+
+    setButtonPosition({ left: percentageX, top: percentageY });
+    setIsDraggingButton(true);
+    
+    // 添加鼠标移动和鼠标释放事件监听
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!rect) return;
+      
+      const newX = moveEvent.clientX - rect.x;
+      const newY = moveEvent.clientY - rect.y;
+      
+      const newPercentageX = (newX / rect.width) * 100;
+      const newPercentageY = (newY / rect.height) * 100;
+      
+      setButtonPosition({
+        left: Math.max(0, Math.min(100, newPercentageX)),
+        top: Math.max(0, Math.min(100, newPercentageY))
+      });
+    };
+    
+    const handleMouseUp = () => {
+      setIsDraggingButton(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    e.preventDefault();
+    e.stopPropagation();
+  }, [isDragging, videoRect]);
+
+  // 拖动结束
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    setIsDraggingButton(false);
+  }, []);
+
+  // 时间变化
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setPauseTime(newTime);
+    if (videoRef.current) {
+      videoRef.current.currentTime = newTime;
+    }
+  };
+
+  // 时间变化结束
+  const handleTimeChangeEnd = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+  };
+
+  // 位置变化
+  const handlePositionChange = (e: React.ChangeEvent<HTMLInputElement>, axis: 'left' | 'top') => {
+    const percentage = parseFloat(e.target.value);
+    if (axis === 'left') {
+      setPosition(prev => ({ ...prev, left: percentage }));
+    } else {
+      setPosition(prev => ({ ...prev, top: percentage }));
+    }
+  };
+
+  // 缩放变化
+  const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const percentage = parseFloat(e.target.value) / 100;
+    setScale(percentage);
+  };
+
+  // 按钮位置变化
+  const handleButtonPositionChange = (e: React.ChangeEvent<HTMLInputElement>, axis: 'left' | 'top') => {
+    const percentage = parseFloat(e.target.value);
+    if (axis === 'left') {
+      setButtonPosition(prev => ({ ...prev, left: percentage }));
+    } else {
+      setButtonPosition(prev => ({ ...prev, top: percentage }));
+    }
+  };
+
+  // 按钮缩放变化
+  const handleButtonScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const percentage = parseFloat(e.target.value) / 100;
+    setButtonScale(percentage);
   };
 
   // 文件上传处理
@@ -367,6 +617,15 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     }
   };
 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+    },
+    disabled: uploading,
+    maxFiles: 1,
+  });
+
   // 按钮图片上传处理
   const onButtonImageDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -415,7 +674,9 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
           buttonImage: {
             id: data.file_id,
             url: `http://localhost:8080${data.url}`,
-          }
+          },
+          buttonPosition: buttonPosition, // 保存按钮位置
+          buttonScale: buttonScale, // 保存按钮缩放
         };
         setEditingFrame(updatedFrame);
       } else if (currentFrame) {
@@ -424,7 +685,9 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
           buttonImage: {
             id: data.file_id,
             url: `http://localhost:8080${data.url}`,
-          }
+          },
+          buttonPosition: buttonPosition, // 保存按钮位置
+          buttonScale: buttonScale, // 保存按钮缩放
         };
         setCurrentFrame(updatedFrame);
       }
@@ -435,15 +698,6 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       setButtonUploading(false);
     }
   };
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
-    },
-    disabled: uploading,
-    maxFiles: 1,
-  });
 
   // 按钮图片的dropzone
   const { 
@@ -459,144 +713,30 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     maxFiles: 1,
   });
 
-  // 添加暂停帧
-  const addPauseFrame = () => {
-    if (!currentFrame) {
-      setError("Please upload a guide image first");
-      return;
-    }
-
-    // 检查是否存在相同暂停时间的帧
-    const existingFrameWithSameTime = formData.pauseFrames.find(
-      (frame: PauseFrame) => Math.abs(frame.time - pauseTime) < 0.1
-    );
-
-    if (existingFrameWithSameTime) {
-      setError(`A pause frame already exists at ${pauseTime.toFixed(1)}s. Please adjust the pause time to continue.`);
-      return;
-    }
-
-    // 更新当前帧的所有值，包括最新的暂停时间
-    const updatedFrame: PauseFrame = {
-      ...currentFrame,
-      time: pauseTime,
-      position: { ...position },
-      scale: scale,
-      // 如果没有buttonImage，则不包含此字段，后端将默认使用click_area.png
-    };
-
-    // 添加当前帧到列表
-    const updatedFrames = [...formData.pauseFrames, updatedFrame];
-    updateFormData("pauseFrames", updatedFrames);
-
-    // 重置当前帧
-    setCurrentFrame(null);
-    
-    // 隐藏帧编辑器
-    setShowFrameEditor(false);
-    
-    // 清除错误
-    setError(null);
-  };
-
-  // 创建新的暂停帧
-  const createNewPauseFrame = () => {
-    // 如果当前有未保存的帧，先提示保存
-    if (currentFrame) {
-      setConfirmAction(() => () => {
-        addPauseFrame();
-        // 重置位置和缩放
-        setPosition({ left: 50, top: 50 });
-        setScale(0.2);
-        
-        // 暂停视频
-        if (videoRef.current) {
-          videoRef.current.pause();
-        }
-        
-        // 清除编辑状态
-        setIsEditing(false);
-        setEditingFrame(null);
-        
-        // 显示帧编辑器
-        setShowFrameEditor(true);
-        
-        // 清除错误
-        setError(null);
-      });
-      setShowConfirmDialog(true);
-      return;
-    }
-    
-    // 重置位置和缩放
-    setPosition({ left: 50, top: 50 });
-    setScale(0.2);
-    
-    // 暂停视频
-    if (videoRef.current) {
-      videoRef.current.pause();
-    }
-    
-    // 清除编辑状态
-    setIsEditing(false);
-    setEditingFrame(null);
-    
-    // 显示帧编辑器
-    setShowFrameEditor(true);
-    
-    // 清除错误
-    setError(null);
-  };
-
-  // 复用指定帧的图片和配置
-  const copySpecifiedFrame = (frameToCopy: PauseFrame) => {
-    // 设置复制状态
-    setIsCopyingFrame(true);
-    
-    // 创建新的帧，复用指定帧的图片和配置
-    const newFrame: PauseFrame = {
-      id: `frame_${Date.now()}`,
-      time: frameToCopy.time,
-      image: { ...frameToCopy.image },
-      position: { ...frameToCopy.position },
-      scale: frameToCopy.scale || 1
-    };
-    
-    setCurrentFrame(newFrame);
-    setPauseTime(frameToCopy.time);
-    setPosition({ ...frameToCopy.position });
-    setScale(frameToCopy.scale || 1);
-    setShowFrameEditor(true);
-    setShowFrameSelector(false);
-    setError(null);
-    
-    // 将视频定位到指定帧的时间点，但不自动播放
-    if (videoRef.current) {
-      videoRef.current.currentTime = frameToCopy.time;
-      videoRef.current.pause();
-    }
-    
-    // 延迟重置复制状态
-    setTimeout(() => {
-      setIsCopyingFrame(false);
-    }, 1000);
-  };
-
-  // 显示帧选择器
-  const showCopyFrameSelector = () => {
+  // 继续按钮
+  const handleContinue = () => {
     if (formData.pauseFrames.length === 0) {
-      setError("No frames to copy");
+      alert("Please add at least one pause frame.");
       return;
     }
-    setShowFrameSelector(true);
+    nextStep();
   };
 
-  // 移除暂停帧
-  const removePauseFrame = (frameId: string) => {
-    const updatedFrames = formData.pauseFrames.filter(
-      (frame: PauseFrame) => frame.id !== frameId
-    );
-    updateFormData("pauseFrames", updatedFrames);
+  // 切换横竖屏
+  const toggleOrientation = () => {
+    setIsLandscape(!isLandscape);
+    // 如果当前有未保存的帧，先提示保存
+    if (currentFrame && !isEditing) {
+      setConfirmAction(() => {
+        if (window.confirm("You have an unsaved pause frame. Would you like to save it first?")) {
+          addPauseFrame();
+          return () => {}; // No action needed after confirmation
+        } else {
+          setCurrentFrame(null);
+          return () => {}; // No action needed after cancellation
+        }
+      });
+    }
   };
 
   // 编辑暂停帧
@@ -614,10 +754,23 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       });
     }
     
-    // 将视频定位到帧的时间点
+    // 将视频定位到帧的时间点并确保暂停
     if (videoRef.current) {
       videoRef.current.currentTime = frame.time;
       videoRef.current.pause();
+      // 禁止视频播放
+      videoRef.current.controls = false;
+      
+      // 禁用视频的所有可能导致播放的事件
+      const disableVideo = () => {
+        videoRef.current?.pause();
+        return false;
+      };
+      
+      // 添加事件拦截
+      videoRef.current.onplay = disableVideo;
+      videoRef.current.onclick = disableVideo;
+      videoRef.current.onkeydown = disableVideo;
     }
     
     // 设置编辑状态
@@ -626,71 +779,18 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     setPauseTime(frame.time);
     setPosition(frame.position);
     setScale(frame.scale || 1);
+    setButtonPosition(frame.buttonPosition || { left: 50, top: 50 });
+    setButtonScale(frame.buttonScale || 0.2);
     setShowFrameEditor(true);
   };
 
-  // 保存编辑
-  const saveEdit = () => {
-    if (!editingFrame) return;
-    
-    // 更新编辑中的帧
-    const updatedFrame: PauseFrame = {
-      ...editingFrame,
-      time: pauseTime,
-      position: { ...position },
-      scale: scale
-      // buttonImage字段会被保留
-    };
-    
-    // 更新帧列表
-    const updatedFrames = formData.pauseFrames.map((frame: PauseFrame) => 
-      frame.id === updatedFrame.id ? updatedFrame : frame
-    );
-    
-    updateFormData("pauseFrames", updatedFrames);
-    
-    // 重置编辑状态
-    setIsEditing(false);
-    setEditingFrame(null);
-    setShowFrameEditor(false);
-  };
-
-  // 取消编辑
-  const cancelEdit = () => {
-    setIsEditing(false);
-    setEditingFrame(null);
-    setShowFrameEditor(false);
-  };
-
-  // 继续到下一步
-  const handleContinue = () => {
-    // 检查是否至少添加了一个pause frame
+  // 显示帧选择器
+  const showCopyFrameSelector = () => {
     if (formData.pauseFrames.length === 0) {
-      setError("Please add at least one pause frame before continuing");
+      setError("No frames to copy");
       return;
     }
-
-    // 如果有当前帧未添加，则提示添加
-    if (currentFrame) {
-      setConfirmAction(() => {
-        if (window.confirm("You have an unsaved pause frame. Would you like to save it before continuing?")) {
-          addPauseFrame();
-          return () => {}; // No action needed after confirmation
-        } else {
-          return () => {}; // No action needed after cancellation
-        }
-      });
-    }
-
-    nextStep();
-  };
-
-  // 当视频被拖动后自动播放
-  const handleVideoSeeked = () => {
-    // 只有在非拖动滑块状态且非复制帧状态下才自动播放
-    if (!isDraggingSlider && !isCopyingFrame && videoRef.current && videoRef.current.paused) {
-      videoRef.current.play().catch(e => console.error('Auto play failed:', e));
-    }
+    setShowFrameSelector(true);
   };
 
   return (
@@ -746,7 +846,64 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
               onSeeked={handleVideoSeeked}
             />
             
-            {/* 当前帧预览 */}
+            {/* 编辑时添加透明遮罩层，阻止视频交互 */}
+            {isEditing && (
+              <div 
+                className="absolute inset-0 bg-transparent z-5" 
+                onClick={(e) => {
+                  // 只有点击视频区域才阻止事件
+                  if (e.target === e.currentTarget) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (videoRef.current) videoRef.current.pause();
+                  }
+                }}
+              />
+            )}
+            
+            {/* 按钮图片预览 - 放在引导图片下方 */}
+            {currentFrame?.buttonImage && videoRect && (
+              <div
+                className={`absolute ${isDraggingButton ? 'pointer-events-none' : 'cursor-move'}`}
+                style={{
+                  left: `${buttonPosition.left}%`,
+                  top: `${buttonPosition.top}%`,
+                  transform: `translate(-50%, -50%)`,
+                  width: `${buttonScale * 100}%`,
+                  zIndex: 10
+                }}
+                onMouseDown={startButtonDrag}
+              >
+                <img 
+                  src={currentFrame.buttonImage.url} 
+                  alt="Button" 
+                  className="pointer-events-none w-full h-full object-contain"
+                />
+              </div>
+            )}
+            
+            {/* 编辑中的按钮图片预览 */}
+            {isEditing && editingFrame?.buttonImage && videoRect && (
+              <div
+                className={`absolute ${isDraggingButton ? 'pointer-events-none' : 'cursor-move'}`}
+                style={{
+                  left: `${buttonPosition.left}%`,
+                  top: `${buttonPosition.top}%`,
+                  transform: `translate(-50%, -50%)`,
+                  width: `${buttonScale * 100}%`,
+                  zIndex: 10
+                }}
+                onMouseDown={startButtonDrag}
+              >
+                <img 
+                  src={editingFrame.buttonImage.url} 
+                  alt="Button" 
+                  className="pointer-events-none w-full h-full object-contain"
+                />
+              </div>
+            )}
+            
+            {/* 当前帧预览 - 放在按钮图片上方 */}
             {currentFrame && videoRect && (
               <div
                 className={`absolute ${isDragging ? 'pointer-events-none' : 'cursor-move'}`}
@@ -755,6 +912,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   top: `${position.top}%`,
                   transform: `translate(-50%, -50%)`,
                   width: `${scale * 100}%`,
+                  zIndex: 20
                 }}
                 onMouseDown={startDrag}
               >
@@ -766,7 +924,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
               </div>
             )}
             
-            {/* 编辑中的帧预览 */}
+            {/* 编辑中的帧预览 - 放在按钮图片上方 */}
             {isEditing && editingFrame && videoRect && (
               <div
                 className={`absolute ${isDragging ? 'pointer-events-none' : 'cursor-move'}`}
@@ -775,6 +933,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   top: `${position.top}%`,
                   transform: `translate(-50%, -50%)`,
                   width: `${scale * 100}%`,
+                  zIndex: 20
                 }}
                 onMouseDown={startDrag}
               >
@@ -1014,9 +1173,112 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   </div>
                 )}
 
+                {/* 时间控制 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pause Time (seconds)
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max={formData.video.metadata?.duration || 30}
+                    step="0.1"
+                    value={pauseTime}
+                    onChange={handleTimeChange}
+                    onInput={(e) => {
+                      // 实时更新视频位置
+                      if (videoRef.current) {
+                        const newTime = parseFloat((e.target as HTMLInputElement).value);
+                        videoRef.current.currentTime = newTime;
+                      }
+                    }}
+                    onMouseUp={handleTimeChangeEnd}
+                    onTouchEnd={handleTimeChangeEnd}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0s</span>
+                    <span className="font-medium">{pauseTime.toFixed(1)}s</span>
+                    <span>{(formData.video.metadata?.duration || 30).toFixed(1)}s</span>
+                  </div>
+                </div>
+
+                {/* 位置控制 - Guide Image */}
+                {(currentFrame || editingFrame) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Guide Image Position & Size
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Left Position (%)
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={position.left}
+                          onChange={(e) => handlePositionChange(e, "left")}
+                          className="w-full"
+                        />
+                        <div className="text-center text-xs text-gray-500 mt-1">
+                          {position.left.toFixed(0)}%
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Top Position (%)
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={position.top}
+                          onChange={(e) => handlePositionChange(e, "top")}
+                          className="w-full"
+                        />
+                        <div className="text-center text-xs text-gray-500 mt-1">
+                          {position.top.toFixed(0)}%
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 缩放控制 */}
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Guide Image Width (% of screen)
+                      </label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="1"
+                        value={scale * 100}
+                        onChange={handleScaleChange}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>10%</span>
+                        <span className="font-medium">{Math.round(scale * 100)}%</span>
+                        <span>100%</span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-blue-50 border border-blue-100 rounded-md p-3 mt-2">
+                      <p className="text-xs text-blue-700 flex items-center">
+                        <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        You can position the guide image by dragging it directly on the video preview.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* 可选的Button Image组件 */}
                 {(currentFrame || editingFrame) && (
-                  <div className="mt-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <div className="mt-4 border-t border-gray-200 pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <label className="block text-sm font-medium text-gray-700">
                         Button Image (Optional)
@@ -1061,11 +1323,11 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                           onClick={() => {
                             if (isEditing && editingFrame) {
                               // 移除编辑帧中的按钮图片
-                              const { buttonImage, ...rest } = editingFrame;
+                              const { buttonImage, buttonPosition, buttonScale, ...rest } = editingFrame;
                               setEditingFrame(rest as PauseFrame);
                             } else if (currentFrame) {
                               // 移除当前帧中的按钮图片
-                              const { buttonImage, ...rest } = currentFrame;
+                              const { buttonImage, buttonPosition, buttonScale, ...rest } = currentFrame;
                               setCurrentFrame(rest as PauseFrame);
                             }
                           }}
@@ -1110,109 +1372,79 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                         </p>
                       </div>
                     )}
-                  </div>
-                )}
-
-                {/* 时间控制 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pause Time (seconds)
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max={formData.video.metadata?.duration || 30}
-                    step="0.1"
-                    value={pauseTime}
-                    onChange={handleTimeChange}
-                    onInput={(e) => {
-                      // 实时更新视频位置
-                      if (videoRef.current) {
-                        const newTime = parseFloat((e.target as HTMLInputElement).value);
-                        videoRef.current.currentTime = newTime;
-                      }
-                    }}
-                    onMouseUp={handleTimeChangeEnd}
-                    onTouchEnd={handleTimeChangeEnd}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>0s</span>
-                    <span className="font-medium">{pauseTime.toFixed(1)}s</span>
-                    <span>{(formData.video.metadata?.duration || 30).toFixed(1)}s</span>
-                  </div>
-                </div>
-
-                {/* 位置控制 */}
-                {(currentFrame || editingFrame) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Left Position (%)
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={position.left}
-                        onChange={(e) => handlePositionChange(e, "left")}
-                        className="w-full"
-                      />
-                      <div className="text-center text-xs text-gray-500 mt-1">
-                        {position.left.toFixed(0)}%
+                    
+                    {/* 添加按钮位置和缩放控制 */}
+                    {(currentFrame?.buttonImage || (isEditing && editingFrame?.buttonImage)) && (
+                      <div className="mt-4 space-y-4">
+                        <h5 className="text-sm font-medium text-gray-700">Button Position & Size</h5>
+                        
+                        {/* 按钮位置控制 */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Left Position (%)
+                            </label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={buttonPosition.left}
+                              onChange={(e) => handleButtonPositionChange(e, "left")}
+                              className="w-full"
+                            />
+                            <div className="text-center text-xs text-gray-500 mt-1">
+                              {buttonPosition.left.toFixed(0)}%
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Top Position (%)
+                            </label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={buttonPosition.top}
+                              onChange={(e) => handleButtonPositionChange(e, "top")}
+                              className="w-full"
+                            />
+                            <div className="text-center text-xs text-gray-500 mt-1">
+                              {buttonPosition.top.toFixed(0)}%
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* 按钮缩放控制 */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Button Width (% of screen)
+                          </label>
+                          <input
+                            type="range"
+                            min="10"
+                            max="100"
+                            step="1"
+                            value={buttonScale * 100}
+                            onChange={handleButtonScaleChange}
+                            className="w-full"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>10%</span>
+                            <span className="font-medium">{Math.round(buttonScale * 100)}%</span>
+                            <span>100%</span>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-100 rounded-md p-3">
+                          <p className="text-xs text-blue-700 flex items-center">
+                            <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            You can also position the button by clicking and dragging it directly on the video preview.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Top Position (%)
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={position.top}
-                        onChange={(e) => handlePositionChange(e, "top")}
-                        className="w-full"
-                      />
-                      <div className="text-center text-xs text-gray-500 mt-1">
-                        {position.top.toFixed(0)}%
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* 缩放控制 */}
-                {(currentFrame || editingFrame) && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Frame Width (% of screen)
-                    </label>
-                    <input
-                      type="range"
-                      min="10"
-                      max="100"
-                      step="1"
-                      value={scale * 100}
-                      onChange={handleScaleChange}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>10%</span>
-                      <span className="font-medium">{Math.round(scale * 100)}%</span>
-                      <span>100%</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* 拖拽提示 */}
-                {(currentFrame || editingFrame) && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-md p-3">
-                    <p className="text-xs text-blue-700 flex items-center">
-                      <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      You can also position the frame by clicking and dragging it directly on the video preview.
-                    </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1315,12 +1547,24 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                       </div>
                     </div>
                     <div className="p-3 flex items-start">
-                      <div className="h-12 w-12 flex-shrink-0 rounded overflow-hidden bg-gray-200 border border-gray-300 flex items-center justify-center">
-                        <img
-                          src={frame.image.url}
-                          alt="Guide"
-                          className="w-full h-full object-contain"
-                        />
+                      <div className="flex space-x-2">
+                        <div className="h-12 w-12 flex-shrink-0 rounded overflow-hidden bg-gray-200 border border-gray-300 flex items-center justify-center">
+                          <img
+                            src={frame.image.url}
+                            alt="Guide"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        {frame.buttonImage && (
+                          <div className="h-12 w-12 flex-shrink-0 rounded overflow-hidden bg-gray-100 border border-gray-300 flex items-center justify-center relative">
+                            <img
+                              src={frame.buttonImage.url}
+                              alt="Button"
+                              className="w-full h-full object-contain"
+                            />
+                            <div className="absolute bottom-0 right-0 bg-blue-500 text-white text-xs px-1 rounded-tl">BTN</div>
+                          </div>
+                        )}
                       </div>
                       <div className="ml-3 flex-grow min-w-0">
                         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1332,6 +1576,15 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                             <p className="text-gray-500">Scale:</p>
                             <p className="font-medium">{frame.scale ? `${frame.scale.toFixed(1)}x` : '1.0x'}</p>
                           </div>
+                          {frame.buttonImage && (
+                            <div className="col-span-2">
+                              <p className="text-gray-500">Button:</p>
+                              <p className="font-medium text-xs truncate">
+                                Pos: {frame.buttonPosition?.left.toFixed(0)}% L, {frame.buttonPosition?.top.toFixed(0)}% T • 
+                                Scale: {frame.buttonScale ? `${frame.buttonScale.toFixed(1)}x` : '0.2x'}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

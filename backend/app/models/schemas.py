@@ -26,6 +26,9 @@ class PauseFrame(BaseModel):
     image_id: str
     position: Position
     scale: float = 1.0
+    buttonImage_id: Optional[str] = None
+    buttonPosition: Optional[Position] = None
+    buttonScale: Optional[float] = None
 
 
 class CTAButton(BaseModel):
@@ -57,6 +60,7 @@ class Platform(str, Enum):
     FACEBOOK = "facebook"
     APPLOVIN = "applovin"
     MOLOCO = "moloco"
+    TIKTOK = "tiktok"
     ALL = "all"
 
 class Language(str, Enum):
@@ -80,6 +84,11 @@ class UploadResponse(BaseModel):
     is_new_project: Optional[bool] = None
 
 
+class VideoOrientation(str, Enum):
+    PORTRAIT = "portrait"
+    LANDSCAPE = "landscape"
+
+
 class GenerateRequest(BaseModel):
     video_id: str
     project_id: str
@@ -90,6 +99,7 @@ class GenerateRequest(BaseModel):
     language: Language = Language.ENGLISH
     version: str = "v1"
     app_name: str = "PlayableAds"
+    video_orientation: VideoOrientation = VideoOrientation.PORTRAIT  # 新增视频方向参数
 
 
 class GenerateResponse(BaseModel):
