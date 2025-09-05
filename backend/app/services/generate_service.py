@@ -5,15 +5,19 @@ import zipfile
 import base64
 import re
 import mimetypes
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 
-from app.models.schemas import (
+from backend.app.models.schemas import (
     GenerateRequest, Platform, Language, 
     Banner, BannerConfig, PauseFrame, CTAButton
 )
-from app.services.file_service import FileType
+from backend.app.services.file_service import FileType
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 # 当前文件所在目录
 CURRENT_DIR = Path(__file__).parent.parent.parent
@@ -53,6 +57,68 @@ def find_file_by_id(project_dir: Path, file_id: str) -> Optional[Path]:
             if file_id in file_path.name:
                 return file_path
     return None
+
+def extract_used_assets_from_config(config_data: str) -> tuple[list, list]:
+    """
+    从config.js中提取使用到的图片和视频文件ID
+    返回 (image_ids, video_ids)
+    """
+    image_ids = []
+    video_ids = []
+    
+    try:
+        # 尝试提取所有引用的图片ID
+        # 常见的图片引用模式: "buttonImage": "xxx.png", "image": "xxx.jpg", "guideImage": "xxx.webp"
+        image_patterns = [
+            r'"buttonImage"\s*:\s*"([^"]+)"',
+            r'"image"\s*:\s*"([^"]+)"',
+            r'"guideImage"\s*:\s*"([^"]+)"',
+            r'"left_image_id"\s*:\s*"([^"]+)"',
+            r'"right_image_id"\s*:\s*"([^"]+)"',
+            r'"image_id"\s*:\s*"([^"]+)"'
+        ]
+        
+        for pattern in image_patterns:
+            matches = re.findall(pattern, config_data)
+            for match in matches:
+                # 清理文件扩展名，只保留ID部分
+                file_id = match.split('.')[0]
+                if file_id and file_id not in image_ids:
+                    image_ids.append(file_id)
+        
+        # 尝试提取所有引用的视频ID
+        # 常见的视频引用模式: "videoUrl": "xxx.mp4"
+        video_patterns = [
+            r'"videoUrl"\s*:\s*"([^"]+)"'
+        ]
+        
+        for pattern in video_patterns:
+            matches = re.findall(pattern, config_data)
+            for match in matches:
+                # 清理文件扩展名，只保留ID部分
+                file_id = match.split('.')[0]
+                if file_id and file_id not in video_ids:
+                    video_ids.append(file_id)
+        
+    except Exception as e:
+        print(f"Error extracting assets from config: {str(e)}")
+    
+    return image_ids, video_ids
+
+def filter_files_by_ids(file_list: list, asset_ids: list) -> list:
+    """
+    根据asset_ids过滤文件列表，只保留包含这些ID的文件
+    """
+    if not asset_ids:  # 如果没有提供ID，返回所有文件
+        return file_list
+    
+    filtered_files = []
+    for file_name in file_list:
+        file_id = Path(file_name).stem
+        if file_id in asset_ids:
+            filtered_files.append(file_name)
+    
+    return filtered_files
 
 def generate_images_js(partner_dir: Path, image_files: list) -> str:
     """
@@ -100,8 +166,6 @@ def generate_images_js(partner_dir: Path, image_files: list) -> str:
             
             # 添加到字典
             images_dict[file_key] = img_data_uri
-            
-            print(f"Added image: {file_key} with MIME type: {mime_type}")
             
         except Exception as e:
             print(f"Error processing image {img_file}: {str(e)}")
@@ -156,25 +220,37 @@ def generate_videos_js(partner_dir: Path, video_files: list) -> str:
             # 添加到字典
             videos_dict[file_key] = vid_data_uri
             
-            print(f"Added video: {file_key} with MIME type: {mime_type}")
-            
         except Exception as e:
             print(f"Error processing video {vid_file}: {str(e)}")
     
     # 生成JavaScript代码
     return f"window.PLAYABLE_VIDEOS = {json.dumps(videos_dict, indent=2)};"
 
-async def generate_ad_html(request: GenerateRequest, output_id: str) -> Path:
+async def generate_ad_html(request: GenerateRequest, output_id: str) -> (str, str):
+    """
+    生成广告HTML文件
+    
+    Args:
+        request: 生成请求
+        output_id: 输出ID
+        
+    Returns:
+        tuple: (file_url, preview_url) - 文件URL和预览URL
+    """
+    logger.info(f"Starting generate_ad_html for project: {output_id}, platforms: {request.platforms}")
     
     # 查找或创建项目目录
     project_dir = PROJECTS_DIR / output_id
     project_dir.mkdir(exist_ok=True)
+    logger.info(f"Project directory: {project_dir}")
     
     # 查找视频文件
     video_id = request.video_id
     video_file = find_file_by_id(project_dir, video_id)
+    logger.info(f"Looking for video file with ID: {video_id}")
     
     if not video_file:
+        logger.info(f"Video file not found in project directory, searching in other projects")
         # 尝试在其他项目目录中查找视频文件
         for project_path in PROJECTS_DIR.iterdir():
             if project_path.is_dir() and project_path != project_dir:
@@ -182,67 +258,73 @@ async def generate_ad_html(request: GenerateRequest, output_id: str) -> Path:
                 if video_file:
                     # 复制视频文件到当前项目目录
                     target_file = project_dir / video_file.name
+                    logger.info(f"Found video file in {project_path}, copying to {target_file}")
                     shutil.copy2(video_file, target_file)
                     video_file = target_file
                     break
     
     if not video_file:
+        logger.error(f"Video file with ID {video_id} not found")
         raise FileNotFoundError(f"Video file with ID {video_id} not found")
-    
-    # 根据平台选择不同的生成方法
-    platform = request.platforms[0] if request.platforms else Platform.GOOGLE
-    
-    if platform == Platform.GOOGLE:
-        return await generate_google_ad(request, output_id, project_dir, video_file)
-    elif platform == Platform.FACEBOOK:
-        return await generate_facebook_ad(request, output_id, project_dir, video_file)
-    elif platform == Platform.APPLOVIN:
-        return await generate_applovin_ad(request, output_id, project_dir, video_file)
-    elif platform == Platform.MOLOCO:
-        return await generate_moloco_ad(request, output_id, project_dir, video_file)
-    elif platform == Platform.TIKTOK:
-        return await generate_tiktok_ad(request, output_id, project_dir, video_file)
     else:
-        return await generate_google_ad(request, output_id, project_dir, video_file)  # 默认使用Google
+        logger.info(f"Using video file: {video_file}")
     
-    # 复制模板文件到项目目录（直接复制到根，不再使用 template/partners 结构）
-    # 只复制不存在的文件，避免覆盖已修改的文件
+    # 复制模板文件到项目目录，复制不存在的文件，避免覆盖已修改的文件
+    logger.info(f"Copying template files from {TEMPLATE_DIR} to {project_dir}")
     for src in TEMPLATE_DIR.glob('*'):
         dst = project_dir / src.name
         if not dst.exists():
             if src.is_file():
                 shutil.copy2(src, dst)
+                logger.info(f"Copied file: {src} -> {dst}")
             elif src.is_dir():
                 shutil.copytree(src, dst, dirs_exist_ok=True)
+                logger.info(f"Copied directory: {src} -> {dst}")
     
     # 收集项目目录中的文件
     image_files = []
     video_files = []
     
-    # 从项目目录读取文件
-    for file_path in project_dir.iterdir():
-        if file_path.is_file():
-            file_name = file_path.name
-            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
-                video_files.append(file_name)
-            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
-                image_files.append(file_name)
-    
     # 生成config.js文件（根目录）
+    logger.info("Generating config.js")
     config_data = generate_config_js(request)
     config_file = project_dir / "config.js"
     with open(config_file, "w", encoding="utf-8") as f:
         f.write(config_data)
     
     # 生成lang.js文件（根目录）
+    logger.info(f"Generating lang.js for language: {request.language}")
     lang_data = generate_lang_js(request.language)
     lang_file = project_dir / "lang.js"
     with open(lang_file, "w", encoding="utf-8") as f:
         f.write(lang_data)
     
+    # 从项目目录读取文件
+    logger.info("Collecting files from project directory")
+    for file_path in project_dir.iterdir():
+        if file_path.is_file():
+            file_name = file_path.name
+            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
+                video_files.append(file_name)
+                logger.info(f"Found video file: {file_name}")
+            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
+                image_files.append(file_name)
+                logger.info(f"Found image file: {file_name}")
+
+    # 从config.js中提取使用到的资源ID
+    logger.info("Extracting used assets from config.js")
+    used_image_ids, used_video_ids = extract_used_assets_from_config(config_data)
+    logger.info(f"Used image IDs: {used_image_ids}")
+    logger.info(f"Used video IDs: {used_video_ids}")
+    
+    # 过滤文件列表，只保留使用到的文件
+    filtered_image_files = filter_files_by_ids(image_files, used_image_ids)
+    filtered_video_files = filter_files_by_ids(video_files, used_video_ids)
+    logger.info(f"Filtered image files: {filtered_image_files}")
+    logger.info(f"Filtered video files: {filtered_video_files}")
+
     # 生成images.js和videos.js文件（根目录）
-    print(f"image_files: {image_files}")
-    print(f"video_files: {video_files}")
+    logger.info("Generating images.js and videos.js")
     images_js_content = generate_images_js(project_dir, image_files)
     videos_js_content = generate_videos_js(project_dir, video_files)
     with open(project_dir / "images.js", "w", encoding="utf-8") as f:
@@ -250,62 +332,103 @@ async def generate_ad_html(request: GenerateRequest, output_id: str) -> Path:
     with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
         f.write(videos_js_content)
     
-    # 执行构建（直接在Python中实现原build.sh逻辑）
-    if request.platform == Platform.ALL:
+    # 为所有平台生成HTML文件
+    output_paths = []
+    preview_paths = []
+    
+    # 执行构建
+    if Platform.ALL in request.platforms:
+        logger.info("Generating for ALL platforms")
         # 为所有平台生成HTML文件
         platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO, Platform.TIKTOK]
-        all_platform_files = []
-        
-        for platform in platforms:
-            # 创建一个新的请求对象，只修改平台
-            platform_request = GenerateRequest(
-                video_id=request.video_id,
-                project_id=request.project_id,
-                pause_frames=request.pause_frames,
-                cta_buttons=request.cta_buttons,
-                banners=request.banners,
-                platform=platform,
-                language=request.language,
-                version=request.version,
-                app_name=request.app_name
-            )
-            
-            # 为当前平台生成HTML文件
-            build_result = run_build_script(
-                project_dir, 
-                platform, 
-                request.language,
-                request.version,
-                request.app_name
-            )
-            if not build_result["success"]:
-                raise Exception(f"Build failed for platform {platform}: {build_result['error']}")
-            
-            # 收集生成的文件
-            all_platform_files.append(build_result["output_file"])
-        
-        # 创建一个包含所有平台文件的ZIP包
-        safe_app_name = re.sub(r'[^\w\-]', '_', request.app_name)
-        lang_value = request.language.value if isinstance(request.language, Language) else str(request.language).lower()
-        all_platforms_zip = project_dir / f"{safe_app_name}-all-{lang_value}-{request.version}.zip"
-        with zipfile.ZipFile(all_platforms_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for platform_file in all_platform_files:
-                zipf.write(platform_file, platform_file.name)
-        
-        return all_platforms_zip
     else:
-        # 为单个平台生成HTML文件
+        platforms = request.platforms
+    
+    # 生成TikTok平台的config.json文件
+    if Platform.TIKTOK in platforms:
+        logger.info("Generating config.json for TikTok platform")
+        try:
+            # 确保video_orientation存在
+            orientation = "portrait"
+            if hasattr(request, 'video_orientation') and request.video_orientation:
+                orientation = request.video_orientation.value if hasattr(request.video_orientation, 'value') else str(request.video_orientation).lower()
+            
+            # 确保language存在
+            language = "en"
+            if hasattr(request, 'language') and request.language:
+                language = request.language.value if hasattr(request.language, 'value') else str(request.language).lower()
+            
+            config_json = {
+                "playable_orientation": orientation,
+                "playable_languages": [language]
+            }
+            config_json_file = project_dir / "config.json"
+            with open(config_json_file, "w", encoding="utf-8") as f:
+                json.dump(config_json, f, indent=2)
+            logger.info(f"Generated config.json for TikTok: {config_json}")
+        except Exception as e:
+            logger.error(f"Failed to generate config.json for TikTok: {str(e)}")
+    
+    for platform in platforms:
+        logger.info(f"Building for platform: {platform}")
+        # 为当前平台生成HTML文件
         build_result = run_build_script(
             project_dir, 
-            request.platform, 
+            platform, 
             request.language,
             request.version,
             request.app_name
         )
         if not build_result["success"]:
-            raise Exception(f"Build failed: {build_result['error']}")
+            logger.error(f"Build failed for platform {platform}: {build_result['error']}")
+            raise Exception(f"Build failed for platform {platform}: {build_result['error']}")
         
-        return build_result["output_file"]
+        # 收集生成的文件
+        output_paths.append(build_result["output_file"])
+        logger.info(f"Build successful for {platform}, output file: {build_result['output_file']}")
+        
+        # 如果有预览文件，添加到预览文件列表
+        if build_result.get("preview_file"):
+            preview_paths.append(build_result["preview_file"])
+            logger.info(f"Preview file: {build_result['preview_file']}")
+    
+    # 如果有多个平台，创建一个包含所有平台文件的ZIP包
+    if len(platforms) > 1:
+        safe_app_name = re.sub(r'[^\w\-]', '_', request.app_name)
+        lang_value = request.language.value if isinstance(request.language, Language) else str(request.language).lower()
+        multi_platforms_zip = project_dir / f"{safe_app_name}-multi-platforms-{lang_value}-{request.version}.zip"
+        logger.info(f"Creating ZIP file with multi platforms: {multi_platforms_zip}")
+        with zipfile.ZipFile(multi_platforms_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for platform_file in output_paths:
+                zipf.write(platform_file, platform_file.name)
+                logger.info(f"Added {platform_file} to ZIP")
+        
+        logger.info(f"Generation complete, returning ZIP file: {multi_platforms_zip}")
+        file_url = f"/projects/{output_id}/{multi_platforms_zip.name}"
+        
+        # 使用第一个预览文件（如果有的话）
+        preview_url = None
+        if preview_paths:
+            preview_path = preview_paths[0]
+            preview_url = f"/projects/{preview_path.parent.parent.name}/{preview_path.parent.name}/{preview_path.name}"
+        
+        return file_url, preview_url
+    
+    # 如果只有一个平台
+    logger.info(f"Generation complete, returning output path: {output_paths[0]}")
+    file_url = f"/projects/{output_id}/{output_paths[0].name}"
+    
+    # 如果有预览文件，使用它；否则使用输出文件作为预览
+    preview_url = None
+    if preview_paths:
+        preview_path = preview_paths[0]
+        preview_url = f"/projects/{preview_path.parent.parent.name}/{preview_path.parent.name}/{preview_path.name}"
+    else:
+        # 如果输出文件是HTML，使用它作为预览
+        if output_paths[0].suffix == ".html":
+            preview_url = file_url
+    
+    return file_url, preview_url
 
 def generate_config_js(request: GenerateRequest) -> str:
     """
@@ -315,13 +438,13 @@ def generate_config_js(request: GenerateRequest) -> str:
     project_dir = PROJECTS_DIR / request.project_id
     
     if not project_dir.exists():
-        print(f"Warning: Project directory not found: {project_dir}")
+        logger.warning(f"Project directory not found: {project_dir}")
         project_dir = None
         # 尝试查找包含video_id的目录作为备选
         for existing_dir in PROJECTS_DIR.iterdir():
             if existing_dir.is_dir() and request.video_id in str(existing_dir):
                 project_dir = existing_dir
-                print(f"Found alternative project directory: {project_dir}")
+                logger.info(f"Found alternative project directory: {project_dir}")
                 break
     
     # 获取视频文件扩展名
@@ -438,12 +561,17 @@ def generate_config_js(request: GenerateRequest) -> str:
                 "url": "https://play.google.com/store/apps"
             }
     
+    # 获取视频方向
+    orientation = "portrait"
+    if hasattr(request, 'video_orientation'):
+        orientation = request.video_orientation.value if hasattr(request.video_orientation, 'value') else str(request.video_orientation).lower()
+    
     # 创建配置对象
     config = {
         "appName": request.app_name,
         "version": request.version,
         "videoUrl": f"{request.video_id}{video_ext}",
-        "orientation": "portrait",
+        "orientation": orientation,
         "rotateTime": -1,
         "volume": 1,
         "enableFirstClick": True,
@@ -509,23 +637,29 @@ def generate_config_js(request: GenerateRequest) -> str:
                         "portrait": {"x": banner.position.left, "y": banner.position.top}
                     }
                     banner_config["right_scale"] = banner.scale
-
-        if request.banners.left_image_id:
+        else:
+            # 如果是BannerConfig对象
+            if hasattr(request.banners, 'left_image_id') and request.banners.left_image_id:
                 left_ext = get_file_extension(project_dir, request.banners.left_image_id) if project_dir else ".png"
                 banner_config["left_image_id"] = f"{request.banners.left_image_id}{left_ext}"
-                banner_config["left_position"] = {
-                    "landscape": {"x": request.banners.left_position.left, "y": request.banners.left_position.top},
-                    "portrait": {"x": request.banners.left_position.left, "y": request.banners.left_position.top}
-                }
-                banner_config["left_scale"] = request.banners.left_scale
-        if request.banners.right_image_id:
+                if hasattr(request.banners, 'left_position') and request.banners.left_position:
+                    banner_config["left_position"] = {
+                        "landscape": {"x": request.banners.left_position.left, "y": request.banners.left_position.top},
+                        "portrait": {"x": request.banners.left_position.left, "y": request.banners.left_position.top}
+                    }
+                if hasattr(request.banners, 'left_scale') and request.banners.left_scale:
+                    banner_config["left_scale"] = request.banners.left_scale
+            
+            if hasattr(request.banners, 'right_image_id') and request.banners.right_image_id:
                 right_ext = get_file_extension(project_dir, request.banners.right_image_id) if project_dir else ".png"
                 banner_config["right_image_id"] = f"{request.banners.right_image_id}{right_ext}"
-                banner_config["right_position"] = {
-                    "landscape": {"x": request.banners.right_position.left, "y": request.banners.right_position.top},
-                    "portrait": {"x": request.banners.right_position.left, "y": request.banners.right_position.top}
-                }
-                banner_config["right_scale"] = request.banners.right_scale
+                if hasattr(request.banners, 'right_position') and request.banners.right_position:
+                    banner_config["right_position"] = {
+                        "landscape": {"x": request.banners.right_position.left, "y": request.banners.right_position.top},
+                        "portrait": {"x": request.banners.right_position.left, "y": request.banners.right_position.top}
+                    }
+                if hasattr(request.banners, 'right_scale') and request.banners.right_scale:
+                    banner_config["right_scale"] = request.banners.right_scale
         
         if banner_config:
             config["banners"] = banner_config
@@ -573,54 +707,6 @@ def generate_lang_js(language: str) -> str:
             "download_now": "今すぐダウンロード",
             "play_now": "今すぐプレイ",
             "install_now": "今すぐインストール"
-        },
-        "ko": {
-            "title": "플레이어블 광고",
-            "click_to_play": "계속하려면 탭하세요",
-            "rotate_tip": "화면이 회전됩니다",
-            "loading_failed": "로딩 실패",
-            "play_failed": "재생 실패",
-            "resource_not_found": "리소스를 찾을 수 없음",
-            "continue_button": "계속",
-            "download_now": "지금 다운로드",
-            "play_now": "지금 플레이",
-            "install_now": "지금 설치"
-        },
-        "fr": {
-            "title": "Publicité jouable",
-            "click_to_play": "Appuyez pour continuer",
-            "rotate_tip": "L'écran va pivoter",
-            "loading_failed": "Échec du chargement",
-            "play_failed": "Échec de la lecture",
-            "resource_not_found": "Ressource introuvable",
-            "continue_button": "Continuer",
-            "download_now": "Télécharger maintenant",
-            "play_now": "Jouer maintenant",
-            "install_now": "Installer maintenant"
-        },
-        "de": {
-            "title": "Spielbare Anzeige",
-            "click_to_play": "Tippen Sie, um fortzufahren",
-            "rotate_tip": "Bildschirm wird gedreht",
-            "loading_failed": "Laden fehlgeschlagen",
-            "play_failed": "Wiedergabe fehlgeschlagen",
-            "resource_not_found": "Ressource nicht gefunden",
-            "continue_button": "Weiter",
-            "download_now": "Jetzt herunterladen",
-            "play_now": "Jetzt spielen",
-            "install_now": "Jetzt installieren"
-        },
-        "es": {
-            "title": "Anuncio jugable",
-            "click_to_play": "Toca para continuar",
-            "rotate_tip": "La pantalla girará",
-            "loading_failed": "Error de carga",
-            "play_failed": "Error de reproducción",
-            "resource_not_found": "Recurso no encontrado",
-            "continue_button": "Continuar",
-            "download_now": "Descargar ahora",
-            "play_now": "Jugar ahora",
-            "install_now": "Instalar ahora"
         }
     }
     
@@ -636,419 +722,140 @@ def generate_lang_js(language: str) -> str:
     # 返回语言配置JavaScript
     return f"window.PLAYABLE_LANG = {json.dumps(lang_config, indent=2, ensure_ascii=False)};"
 
-def run_build_script(project_dir: Path, platform: Platform, language: Language, version: str, app_name: str) -> dict:
-    """
-    执行构建脚本，生成HTML文件
-    """
-    try:
-        # 构建输出文件名
-        safe_app_name = re.sub(r'[^\w\-]', '_', app_name)
-        lang_value = language.value if isinstance(language, Language) else str(language).lower()
-        platform_value = platform.value if isinstance(platform, Platform) else str(platform).lower()
-        
-        output_file = project_dir / f"{safe_app_name}-{platform_value}-{lang_value}-{version}.html"
-        
-        # 读取模板HTML文件
-        template_file = TEMPLATE_DIR / "index.html"
-        with open(template_file, "r", encoding="utf-8") as f:
-            html_content = f.read()
-        
-        # 写入输出文件
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(html_content)
-        
-        return {
-            "success": True,
-            "output_file": output_file
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-async def generate_ad_zip(request: GenerateRequest, output_id: str) -> Path:
-    """
-    生成ZIP格式的广告文件
-    """
-    html_path = await generate_ad_html(request, output_id)
-    zip_filename = f"{request.platform}_{output_id}.zip"
-    zip_path = html_path.parent / zip_filename
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write(html_path, html_path.name)
-    html_path.unlink()
-    return zip_path 
-
 def get_file_extension(project_dir: Path, file_id: str) -> str:
     """
-    根据文件ID在项目目录中查找文件，并返回其后缀名
+    根据文件ID查找文件并返回其扩展名
     """
-    print(f"DEBUG: get_file_extension called for file_id='{file_id}' in project_dir='{project_dir}'")
+    if not project_dir or not project_dir.exists():
+        return ".png"  # 默认扩展名
     
-    # 首先尝试直接查找文件
     for file_path in project_dir.iterdir():
-        if file_path.is_file():
-            print(f"DEBUG: Checking file: {file_path.name}")
-            if file_id in file_path.name:
-                print(f"DEBUG: Found exact match: {file_path.name}, returning suffix: {file_path.suffix}")
-                return file_path.suffix
-    
-    # 如果找不到文件，检查是否有同名但不同扩展名的文件
-    possible_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4', '.webm', '.mov', '.avi', '.mkv']
-    for ext in possible_extensions:
-        potential_file = project_dir / f"{file_id}{ext}"
-        if potential_file.exists():
-            print(f"DEBUG: Found file with exact ID and extension '{ext}': {potential_file.name}, returning suffix: {ext}")
-            return ext
-    
-    # 尝试更严格的匹配 - 检查文件名是否完全等于file_id（忽略扩展名）
-    for file_path in project_dir.iterdir():
-        if file_path.is_file() and file_path.stem == file_id:
-            print(f"DEBUG: Found stem match: {file_path.name}, returning suffix: {file_path.suffix}")
+        if file_path.is_file() and file_id in file_path.stem:
             return file_path.suffix
     
-    # 如果仍然找不到文件，返回默认后缀
-    print(f"DEBUG: File with ID '{file_id}' not found in '{project_dir}', returning default extension")
-    return ".png"  # Default to .png for images, .mp4 for videos if not found 
-async def generate_google_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
-    """
-    生成Google广告HTML文件
-    """
-    # 复制模板文件到项目目录
-    for src in TEMPLATE_DIR.glob('*'):
-        dst = project_dir / src.name
-        if not dst.exists():
-            if src.is_file():
-                shutil.copy2(src, dst)
-            elif src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-    
-    # 收集项目目录中的文件
-    image_files = []
-    video_files = []
-    
-    # 从项目目录读取文件
-    for file_path in project_dir.iterdir():
-        if file_path.is_file():
-            file_name = file_path.name
-            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
-                video_files.append(file_name)
-            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
-                image_files.append(file_name)
-    
-    # 生成config.js文件
-    config_data = generate_config_js(request)
-    config_file = project_dir / "config.js"
-    with open(config_file, "w", encoding="utf-8") as f:
-        f.write(config_data)
-    
-    # 生成lang.js文件
-    lang_data = generate_lang_js(request.language)
-    lang_file = project_dir / "lang.js"
-    with open(lang_file, "w", encoding="utf-8") as f:
-        f.write(lang_data)
-    
-    # 生成images.js和videos.js文件
-    print(f"image_files: {image_files}")
-    print(f"video_files: {video_files}")
-    images_js_content = generate_images_js(project_dir, image_files)
-    videos_js_content = generate_videos_js(project_dir, video_files)
-    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
-        f.write(images_js_content)
-    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
-        f.write(videos_js_content)
-    
-    # 执行构建
-    build_result = run_build_script(
-        project_dir, 
-        Platform.GOOGLE, 
-        request.language,
-        request.version,
-        request.app_name
-    )
-    if not build_result["success"]:
-        raise Exception(f"Build failed for Google platform: {build_result['error']}")
-    
-    # 如果有预览文件，优先使用预览文件
-    if "preview_file" in build_result and build_result["preview_file"]:
-        return build_result["preview_file"]
-    
-    # 否则使用输出文件
-    return build_result["output_file"]
-
-async def generate_facebook_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
-    """
-    生成Facebook广告HTML文件
-    """
-    # 复制模板文件到项目目录
-    for src in TEMPLATE_DIR.glob('*'):
-        dst = project_dir / src.name
-        if not dst.exists():
-            if src.is_file():
-                shutil.copy2(src, dst)
-            elif src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-    
-    # 收集项目目录中的文件
-    image_files = []
-    video_files = []
-    
-    # 从项目目录读取文件
-    for file_path in project_dir.iterdir():
-        if file_path.is_file():
-            file_name = file_path.name
-            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
-                video_files.append(file_name)
-            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
-                image_files.append(file_name)
-    
-    # 生成config.js文件
-    config_data = generate_config_js(request)
-    config_file = project_dir / "config.js"
-    with open(config_file, "w", encoding="utf-8") as f:
-        f.write(config_data)
-    
-    # 生成lang.js文件
-    lang_data = generate_lang_js(request.language)
-    lang_file = project_dir / "lang.js"
-    with open(lang_file, "w", encoding="utf-8") as f:
-        f.write(lang_data)
-    
-    # 生成images.js和videos.js文件
-    print(f"image_files: {image_files}")
-    print(f"video_files: {video_files}")
-    images_js_content = generate_images_js(project_dir, image_files)
-    videos_js_content = generate_videos_js(project_dir, video_files)
-    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
-        f.write(images_js_content)
-    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
-        f.write(videos_js_content)
-    
-    # 执行构建
-    build_result = run_build_script(
-        project_dir, 
-        Platform.FACEBOOK, 
-        request.language,
-        request.version,
-        request.app_name
-    )
-    if not build_result["success"]:
-        raise Exception(f"Build failed for Facebook platform: {build_result['error']}")
-    
-    return build_result["output_file"]
-
-async def generate_applovin_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
-    """
-    生成AppLovin广告HTML文件
-    """
-    # 复制模板文件到项目目录
-    for src in TEMPLATE_DIR.glob('*'):
-        dst = project_dir / src.name
-        if not dst.exists():
-            if src.is_file():
-                shutil.copy2(src, dst)
-            elif src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-    
-    # 收集项目目录中的文件
-    image_files = []
-    video_files = []
-    
-    # 从项目目录读取文件
-    for file_path in project_dir.iterdir():
-        if file_path.is_file():
-            file_name = file_path.name
-            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
-                video_files.append(file_name)
-            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
-                image_files.append(file_name)
-    
-    # 生成config.js文件
-    config_data = generate_config_js(request)
-    config_file = project_dir / "config.js"
-    with open(config_file, "w", encoding="utf-8") as f:
-        f.write(config_data)
-    
-    # 生成lang.js文件
-    lang_data = generate_lang_js(request.language)
-    lang_file = project_dir / "lang.js"
-    with open(lang_file, "w", encoding="utf-8") as f:
-        f.write(lang_data)
-    
-    # 生成images.js和videos.js文件
-    print(f"image_files: {image_files}")
-    print(f"video_files: {video_files}")
-    images_js_content = generate_images_js(project_dir, image_files)
-    videos_js_content = generate_videos_js(project_dir, video_files)
-    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
-        f.write(images_js_content)
-    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
-        f.write(videos_js_content)
-    
-    # 执行构建
-    build_result = run_build_script(
-        project_dir, 
-        Platform.APPLOVIN, 
-        request.language,
-        request.version,
-        request.app_name
-    )
-    if not build_result["success"]:
-        raise Exception(f"Build failed for AppLovin platform: {build_result['error']}")
-    
-    return build_result["output_file"]
+    return ".png"  # 默认扩展名
 
 
-async def generate_moloco_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
+def run_build_script(project_dir: Path, platform: Platform, language: str, version: str = "v1", app_name: str = "PlayableAds") -> dict:
     """
-    生成Moloco广告HTML文件
+    直接在Python中实现构建：将CSS/JS内联到index.html，并按平台输出到 project_dir/platforms/<platform>/ 下。
     """
-    # 复制模板文件到项目目录
-    for src in TEMPLATE_DIR.glob('*'):
-        dst = project_dir / src.name
-        if not dst.exists():
-            if src.is_file():
-                shutil.copy2(src, dst)
-            elif src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-    
-    # 收集项目目录中的文件
-    image_files = []
-    video_files = []
-    
-    # 从项目目录读取文件
-    for file_path in project_dir.iterdir():
-        if file_path.is_file():
-            file_name = file_path.name
-            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
-                video_files.append(file_name)
-            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
-                image_files.append(file_name)
-    
-    # 生成config.js文件
-    config_data = generate_config_js(request)
-    config_file = project_dir / "config.js"
-    with open(config_file, "w", encoding="utf-8") as f:
-        f.write(config_data)
-    
-    # 生成lang.js文件
-    lang_data = generate_lang_js(request.language)
-    lang_file = project_dir / "lang.js"
-    with open(lang_file, "w", encoding="utf-8") as f:
-        f.write(lang_data)
-    
-    # 生成images.js和videos.js文件
-    print(f"image_files: {image_files}")
-    print(f"video_files: {video_files}")
-    images_js_content = generate_images_js(project_dir, image_files)
-    videos_js_content = generate_videos_js(project_dir, video_files)
-    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
-        f.write(images_js_content)
-    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
-        f.write(videos_js_content)
-    
-    # 执行构建
-    build_result = run_build_script(
-        project_dir, 
-        Platform.MOLOCO, 
-        request.language,
-        request.version,
-        request.app_name
-    )
-    if not build_result["success"]:
-        raise Exception(f"Build failed for Moloco platform: {build_result['error']}")
-    
-    return build_result["output_file"]
-
-async def generate_tiktok_ad(request: GenerateRequest, output_id: str, project_dir: Path, video_file: Path) -> Path:
-    """
-    生成TikTok广告HTML文件
-    """
-    # 复制模板文件到项目目录
-    for src in TEMPLATE_DIR.glob('*'):
-        dst = project_dir / src.name
-        if not dst.exists():
-            if src.is_file():
-                shutil.copy2(src, dst)
-            elif src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-    
-    # 收集项目目录中的文件
-    image_files = []
-    video_files = []
-    
-    # 从项目目录读取文件
-    for file_path in project_dir.iterdir():
-        if file_path.is_file():
-            file_name = file_path.name
-            if file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv']:
-                video_files.append(file_name)
-            elif file_path.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']:
-                image_files.append(file_name)
-    
-    # 生成config.js文件
-    config_data = generate_config_js(request)
-    config_file = project_dir / "config.js"
-    with open(config_file, "w", encoding="utf-8") as f:
-        f.write(config_data)
-    
-    # 根据视频方向设置playable_orientation值
-    playable_orientation = 1  # 默认竖屏
-    if request.video_orientation.value == "landscape":
-        playable_orientation = 2  # 横屏
+    try:
+        logger.info(f"Building ad for platform: {platform}, language: {language}, version: {version}, app_name: {app_name}")
         
-    # 生成config.json文件（TikTok特有）
-    config_json = {
-        "playable_orientation": playable_orientation,
-        "playable_languages": [request.language.value]
-    }
-    config_json_file = project_dir / "config.json"
-    with open(config_json_file, "w", encoding="utf-8") as f:
-        json.dump(config_json, f, indent=2)
-    
-    # 生成lang.js文件
-    lang_data = generate_lang_js(request.language)
-    lang_file = project_dir / "lang.js"
-    with open(lang_file, "w", encoding="utf-8") as f:
-        f.write(lang_data)
-    
-    # 生成images.js和videos.js文件
-    print(f"image_files: {image_files}")
-    print(f"video_files: {video_files}")
-    images_js_content = generate_images_js(project_dir, image_files)
-    videos_js_content = generate_videos_js(project_dir, video_files)
-    with open(project_dir / "images.js", "w", encoding="utf-8") as f:
-        f.write(images_js_content)
-    with open(project_dir / "videos.js", "w", encoding="utf-8") as f:
-        f.write(videos_js_content)
-    
-    # 执行构建
-    build_result = run_build_script(
-        project_dir, 
-        Platform.TIKTOK, 
-        request.language,
-        request.version,
-        request.app_name
-    )
-    if not build_result["success"]:
-        raise Exception(f"Build failed for TikTok platform: {build_result['error']}")
-    
-    # 创建预览目录和文件
-    preview_dir = project_dir / "preview"
-    preview_dir.mkdir(exist_ok=True)
-    
-    # 复制HTML文件到预览目录作为预览文件
-    preview_file = preview_dir / f"tiktok_preview_{output_id}.html"
-    shutil.copy2(build_result["output_file"], preview_file)
-    
-    # 为TikTok创建一个包含HTML和config.json的ZIP包
-    safe_app_name = re.sub(r'[^\w\-]', '_', request.app_name)
-    lang_value = request.language.value if isinstance(request.language, Language) else str(request.language).lower()
-    tiktok_zip = project_dir / f"{safe_app_name}-tiktok-{lang_value}-{request.version}.zip"
-    with zipfile.ZipFile(tiktok_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # 添加HTML文件
-        zipf.write(build_result["output_file"], build_result["output_file"].name)
-        # 添加config.json文件
-        zipf.write(config_json_file, config_json_file.name)
-    
-    return tiktok_zip
+        # 输入文件（统一在项目根目录）
+        index_html = project_dir / "index.html"
+        main_js = project_dir / "main.js"
+        style_css = project_dir / "style.css"
+        config_js = project_dir / "config.js"
+        lang_js = project_dir / "lang.js"
+        images_js = project_dir / "images.js"
+        videos_js = project_dir / "videos.js"
+        config_json = project_dir / "config.json"
+        
+        if not all([index_html.exists(), main_js.exists(), style_css.exists(), config_js.exists(), lang_js.exists()]):
+            logger.error(f"Missing required files in {project_dir}:")
+            logger.error(f"index.html exists: {index_html.exists()}")
+            logger.error(f"main.js exists: {main_js.exists()}")
+            logger.error(f"style.css exists: {style_css.exists()}")
+            logger.error(f"config.js exists: {config_js.exists()}")
+            logger.error(f"lang.js exists: {lang_js.exists()}")
+            return {"success": False, "error": "Required template files not found in project root"}
+        
+        html_content = index_html.read_text(encoding="utf-8")
+        main_js_content = main_js.read_text(encoding="utf-8")
+        style_css_content = style_css.read_text(encoding="utf-8")
+        config_js_content = config_js.read_text(encoding="utf-8")
+        lang_js_content = lang_js.read_text(encoding="utf-8")
+        images_js_content = images_js.read_text(encoding="utf-8") if images_js.exists() else "window.PLAYABLE_IMAGES = {};"
+        videos_js_content = videos_js.read_text(encoding="utf-8") if videos_js.exists() else "window.PLAYABLE_VIDEOS = {};"
+        
+        # 检查ctaClick函数是否已更新
+        if "handleCTAClick" not in main_js_content:
+            logger.warning("handleCTAClick function not found in main.js")
+        
+        # 内联替换
+        html_content = html_content.replace('<link rel="stylesheet" href="style.css">', f'<style>{style_css_content}</style>')
+        html_content = html_content.replace('<script src="images.js"></script>', f'<script>{images_js_content}</script>')
+        html_content = html_content.replace('<script src="videos.js"></script>', f'<script>{videos_js_content}</script>')
+        html_content = html_content.replace('<script src="lang.js"></script>', f'<script>{lang_js_content}</script>')
+        html_content = html_content.replace('<script src="config.js"></script>', f'<script>{config_js_content}</script>')
+        html_content = html_content.replace('<script src="main.js"></script>', f'<script>{main_js_content}</script>')
+        # 替换CTA代码
+        cta_code = ""
+        if platform == Platform.GOOGLE:
+            cta_code = "window.ExitApi.exit();"
+        elif platform == Platform.FACEBOOK:
+            cta_code = "window.FbPlayableAd.onCTAClick();"
+        elif platform == Platform.APPLOVIN:
+            cta_code = "window.mraid.open();"
+        elif platform == Platform.MOLOCO:
+            cta_code = "window.FbPlayableAd.onCTAClick();"
+        elif platform == Platform.TIKTOK:
+            cta_code = "window.openAppStore();"
+        html_content = html_content.replace('window.location.href = config.cta_start_button.url;', cta_code)
+
+        # 设置语言
+        html_content = html_content.replace('<html lang="en">', f'<html lang="{language}">')
+        
+        # 添加应用名称到标题
+        html_content = html_content.replace('<title>Playable Ad</title>', f'<title>{app_name}</title>')
+
+        # 平台特定处理
+        if platform == Platform.GOOGLE:
+            html_content = html_content.replace(
+                '<head>',
+                f'<head>\n    <meta name="ad.orientation" content="portrait">\n    <meta name="ad.language" content="{language}">\n    <script type="text/javascript" src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"> </script>'
+            )
+        elif platform == Platform.TIKTOK:
+            html_content = html_content.replace(
+                '</body>',
+                f'</body>\n  <script src= "https://sf16-muse-va.ibytedtos.com/obj/union-fe-nc-i18n/playable/sdk/playable-sdk.js"></script>'
+            )
+        
+        # 获取平台值（字符串）
+        platform_value = platform.value if isinstance(platform, Platform) else str(platform).lower()
+        
+        # 获取语言值（字符串）
+        lang_value = language.value if isinstance(language, Language) else str(language).lower()
+        
+        # 清理应用名称，移除特殊字符
+        safe_app_name = re.sub(r'[^\w\-]', '_', app_name)
+        
+        # 输出目录和文件名
+        base_name = f"{safe_app_name}-{platform_value}-{lang_value}-{version}"
+        output_html = project_dir / f"{base_name}.html"
+        output_html.write_text(html_content, encoding="utf-8")
+        logger.info(f"Written HTML file to {output_html}")
+        
+        output_file = output_html
+        preview_file = None
+        
+        # 为Google平台创建一个预览目录，保存HTML文件用于预览
+        preview_dir = project_dir / "preview"
+        os.makedirs(preview_dir, exist_ok=True)
+        preview_html = preview_dir / f"{base_name}.html"
+        shutil.copy2(output_html, preview_html)
+        preview_file = preview_html
+        logger.info(f"Created preview file: {preview_html}")
+        
+        if platform == Platform.GOOGLE or platform == Platform.TIKTOK:
+            # 创建ZIP文件
+            zip_file = project_dir / f"{base_name}.zip"
+            with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                zipf.write(output_html, output_html.name)
+                # 如果是TikTok平台且config.json文件存在，将其添加到ZIP包中
+                if platform == Platform.TIKTOK and config_json.exists():
+                    zipf.write(config_json, config_json.name)
+            output_html.unlink()
+            output_file = zip_file
+            logger.info(f"Created ZIP file: {zip_file}")
+        
+        return {
+            "success": True, 
+            "output_file": output_file,
+            "preview_file": preview_file
+        }
+    except Exception as e:
+        logger.error(f"Build failed: {str(e)}", exc_info=True)
+        return {"success": False, "error": f"Build failed: {str(e)}"}

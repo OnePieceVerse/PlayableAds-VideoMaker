@@ -7,8 +7,8 @@ from datetime import datetime
 from pathlib import Path
 import mimetypes
 import hashlib
-from app.models.schemas import UploadResponse, FileType, StepType, Position
-from app.services.file_service import get_file_metadata, validate_file_type, get_video_metadata
+from backend.app.models.schemas import UploadResponse, FileType, StepType, Position
+from backend.app.services.file_service import get_file_metadata, validate_file_type, get_video_metadata
 
 router = APIRouter()
 

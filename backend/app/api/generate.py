@@ -2,10 +2,16 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, FileResponse
 import os
 import uuid
+import traceback
+import logging
 from pathlib import Path
-from app.models.schemas import GenerateRequest, GenerateResponse, Platform
-from app.services.generate_service import generate_ad_html, generate_ad_zip
+from backend.app.models.schemas import GenerateRequest, GenerateResponse, Platform
+from backend.app.services.generate_service import generate_ad_html
 import zipfile
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -26,15 +32,18 @@ async def generate_ad(
     - **project_id**: 项目ID（可选，如果提供则使用已存在的项目目录）
     """
     try:
+        logger.info(f"Received generate request with project_id: {project_id}")
         # 确保项目目录存在
         os.makedirs(PROJECTS_DIR, exist_ok=True)
         
         # 如果URL查询参数提供了project_id，使用它覆盖请求体中的project_id
         if project_id:
             request.project_id = project_id
+            logger.info(f"Using project_id from query parameter: {project_id}")
         
         # 确保request中有project_id
         if not hasattr(request, 'project_id') or not request.project_id:
+            logger.error("project_id is required but not provided")
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "project_id is required"}
@@ -42,93 +51,47 @@ async def generate_ad(
         
         # 使用request中的project_id
         output_id = request.project_id
+        logger.info(f"Using project_id: {output_id}")
         
         # 处理platforms参数
         platforms = request.platforms
+        logger.info(f"Requested platforms: {platforms}")
         
         # 如果包含"all"，则生成所有平台
         if Platform.ALL in platforms:
-            platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO, Platform.TIKTOK]
+            request.platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO, Platform.TIKTOK]
+            logger.info(f"Expanded 'all' to platforms: {request.platforms}")
         
         # 确保至少有一个平台
-        if not platforms:
+        if not request.platforms:
+            logger.error("No platforms selected")
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "At least one platform must be selected"}
             )
         
-        # 生成所有选定平台的HTML文件
-        output_paths = []
-        preview_paths = []  # 新增：存储预览文件路径
-        for platform in platforms:
-            # 创建平台特定的请求
-            platform_request = GenerateRequest(
-                video_id=request.video_id,
-                project_id=request.project_id,
-                pause_frames=request.pause_frames,
-                cta_buttons=request.cta_buttons,
-                banners=request.banners,
-                platforms=[platform],  # 单个平台
-                language=request.language,
-                version=request.version,
-                app_name=request.app_name
-            )
-            
-            # 生成HTML文件
-            output_path = await generate_ad_html(platform_request, output_id)
-            output_paths.append(output_path)
-            
-            # 检查是否有预览文件（特别是对于Google平台）
-            if platform == Platform.GOOGLE or platform == Platform.TIKTOK:
-                preview_dir = PROJECTS_DIR / output_id / "preview"
-                if preview_dir.exists():
-                    preview_files = list(preview_dir.glob("*.html"))
-                    if preview_files:
-                        preview_paths.append(preview_files[0])
+        # 生成广告文件
+        logger.info(f"Calling generate_ad_html with platforms: {request.platforms}")
+        file_url, preview_url = await generate_ad_html(request, output_id)
+        logger.info(f"Generated file URL: {file_url}")
+        logger.info(f"Preview URL: {preview_url}")
         
-        # 如果只有一个平台，使用该平台的输出路径
-        if len(output_paths) == 1:
-            output_path = output_paths[0]
-            file_url = f"/projects/{output_path.parent.name}/{output_path.name}"
-            
-            # 如果是Google平台且有预览文件，使用预览文件URL
-            if (platforms[0] == Platform.GOOGLE or platforms[0] == Platform.TIKTOK) and preview_paths:
-                preview_path = preview_paths[0]
-                preview_url = f"/projects/{preview_path.parent.parent.name}/{preview_path.parent.name}/{preview_path.name}"
-            else:
-                preview_url = file_url if output_path.suffix == ".html" else None
-        else:
-            # 如果有多个平台，创建一个ZIP文件包含所有平台的文件
-            zip_path = PROJECTS_DIR / output_id / f"{output_id}_all_platforms.zip"
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for i, path in enumerate(output_paths):
-                    platform = platforms[i]
-                    # 所有平台的文件都直接添加到ZIP中，保持原有格式
-                    # Google平台保持ZIP格式，其他平台保持HTML格式
-                    zipf.write(path, path.name)
-            
-            file_url = f"/projects/{output_id}/{zip_path.name}"
-            
-            # 如果有预览文件（优先使用Google平台的预览文件）
-            if preview_paths:
-                preview_path = preview_paths[0]
-                preview_url = f"/projects/{preview_path.parent.parent.name}/{preview_path.parent.name}/{preview_path.name}"
-            else:
-                # 使用第一个HTML文件作为预览
-                preview_path = next((p for p in output_paths if p.suffix == ".html"), None)
-                preview_url = f"/projects/{output_id}/{preview_path.name}" if preview_path else None
-        
-        return {
+        response_data = {
             "success": True,
             "file_url": file_url,
             "preview_url": preview_url,
             "project_id": output_id
         }
+        logger.info(f"Returning successful response: {response_data}")
+        return response_data
     
     except Exception as e:
+        error_msg = f"Error generating ad: {str(e)}"
+        stack_trace = traceback.format_exc()
+        logger.error(f"{error_msg}\n{stack_trace}")
         return JSONResponse(
             status_code=500,
-            content={"success": False, "error": str(e)}
+            content={"success": False, "error": error_msg}
         )
 
 @router.get("/download/{project_id}/{file_name}")
