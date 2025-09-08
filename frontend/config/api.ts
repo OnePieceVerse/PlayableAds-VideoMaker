@@ -11,8 +11,8 @@ const dev = {
 
 // 生产环境配置
 const prod = {
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.playableadsmaker.com',
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || 'https://api.playableadsmaker.com/api',
+  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://playableall-video.woa.com',
+  apiUrl: process.env.NEXT_PUBLIC_API_URL || 'https://playableall-video.woa.com/api',
 };
 
 // 根据环境变量选择配置
