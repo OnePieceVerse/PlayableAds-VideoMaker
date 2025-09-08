@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import config, { API_PATHS, getFullUrl } from "@/config/api";
 
 // 定义类型
 type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "tiktok" | "all";
@@ -101,7 +102,7 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) =
         return;
       }
       
-      const response = await fetch(`http://localhost:8080/api/project-files-info?project_id=${formData.project_id}`);
+      const response = await fetch(API_PATHS.projectFilesInfo(formData.project_id));
       
       if (!response.ok) {
         throw new Error(`Failed to fetch files info: ${response.status} ${response.statusText}`);
@@ -293,7 +294,7 @@ const generateAd = async () => {
       };
       
       // 发送请求到后端
-      const response = await fetch("http://localhost:8080/api/generate", {
+      const response = await fetch(API_PATHS.generate, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -309,11 +310,11 @@ const generateAd = async () => {
       if (data.success) {
         // 确保URL是完整的URL
         if (data.preview_url) {
-          data.previewUrl = `http://localhost:8080${data.preview_url}`;
+          data.previewUrl = getFullUrl(data.preview_url);
         }
         
         if (data.file_url) {
-          data.fileUrl = `http://localhost:8080${data.file_url}`;
+          data.fileUrl = getFullUrl(data.file_url);
         }
         
         setResult(data);
@@ -333,7 +334,7 @@ const generateAd = async () => {
       if (result?.file_url && result.file_url.includes(".zip")) {
         // 对于ZIP文件，使用项目ID和文件名
         const fileName = result.file_url.split("/").pop();
-        const downloadUrl = `http://localhost:8080/api/download/${formData.project_id}/${fileName}`;
+        const downloadUrl = API_PATHS.download(formData.project_id, fileName);
         window.open(downloadUrl, "_blank");
       } else {
         // 对于单个HTML文件，使用原来的逻辑
@@ -352,11 +353,11 @@ const generateAd = async () => {
           
           // 构建ZIP文件名
           const zipFileName = `${safeAppName}-${platform}-${lang}-${versionStr}.zip`;
-          const downloadUrl = `http://localhost:8080/api/download/${projectId}/${zipFileName}`;
+          const downloadUrl = API_PATHS.download(projectId, zipFileName);
           window.open(downloadUrl, "_blank");
         } else {
           // 对于其他平台，使用原始file_url
-          const downloadUrl = `http://localhost:8080/api/download-file?file_path=${encodeURIComponent(originalPath.replace(/^\//, ""))}`;
+          const downloadUrl = API_PATHS.downloadFile(originalPath);
           window.open(downloadUrl, "_blank");
         }
       }
@@ -419,7 +420,7 @@ const generateAd = async () => {
                 <iframe
                   ref={iframeRef}
                   key={`preview-iframe-${refreshKey}`}
-                  src={result.previewUrl || `http://localhost:8080${result.preview_url}`}
+                  src={result.previewUrl || getFullUrl(result.preview_url)}
                   className={`w-full h-full border-0 ${isLandscape ? "" : "transform rotate-0"}`}
                   title="Playable Ad Preview"
                   sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"

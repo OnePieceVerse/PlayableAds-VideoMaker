@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
+import config, { API_PATHS, getFullUrl } from "@/config/api";
 
 interface CTAButton {
   id: string;
@@ -306,7 +307,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       uploadFormData.append("project_id", formData.project_id); // 添加项目ID
 
       // Upload to backend API
-      const response = await fetch("http://localhost:8080/api/upload", {
+      const response = await fetch(API_PATHS.upload, {
         method: "POST",
         body: uploadFormData,
       });
@@ -327,7 +328,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
         type: selectedButtonType || buttonType,
         image: {
           id: data.file_id,
-          url: `http://localhost:8080${data.url}`,
+          url: getFullUrl(data.url),
         },
         position: { ...position },
         scale: scale, // 使用当前的scale值

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
+import Image from "next/image";
+import config, { API_PATHS, getFullUrl } from "@/config/api";
 
 interface PauseFrame {
   id: string;
@@ -576,7 +578,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       uploadFormData.append("project_id", formData.project_id);
 
       // Upload to backend API
-      const response = await fetch("http://localhost:8080/api/upload", {
+      const response = await fetch(API_PATHS.upload, {
         method: "POST",
         body: uploadFormData,
       });
@@ -597,7 +599,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
           ...editingFrame,
           image: {
             id: data.file_id,
-            url: `http://localhost:8080${data.url}`,
+            url: getFullUrl(data.url),
           }
         };
         setEditingFrame(updatedFrame);
@@ -608,7 +610,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
           time: pauseTime,
           image: {
             id: data.file_id,
-            url: `http://localhost:8080${data.url}`,
+            url: getFullUrl(data.url),
           },
           position: { ...position },
           scale: 0.2, // 20% of screen width
@@ -658,7 +660,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       uploadFormData.append("image_usage", "button");  // 这个字段在后端可能会被忽略，但不会导致错误
 
       // Upload to backend API
-      const response = await fetch("http://localhost:8080/api/upload", {
+      const response = await fetch(API_PATHS.upload, {
         method: "POST",
         body: uploadFormData,
       });
@@ -679,7 +681,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
           ...editingFrame,
           buttonImage: {
             id: data.file_id,
-            url: `http://localhost:8080${data.url}`,
+            url: getFullUrl(data.url),
           },
           buttonPosition: buttonPosition, // 保存按钮位置
           buttonScale: buttonScale, // 保存按钮缩放
@@ -690,7 +692,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
           ...currentFrame,
           buttonImage: {
             id: data.file_id,
-            url: `http://localhost:8080${data.url}`,
+            url: getFullUrl(data.url),
           },
           buttonPosition: buttonPosition, // 保存按钮位置
           buttonScale: buttonScale, // 保存按钮缩放

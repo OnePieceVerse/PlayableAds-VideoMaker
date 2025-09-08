@@ -127,3 +127,25 @@ uvicorn main:app --reload
 ---
 
 © 2025 试玩广告制作平台 | Playable Ads Maker. 保留所有权利。
+
+## 环境配置
+
+前端API地址配置位于 `frontend/config/api.ts` 文件中，可以通过环境变量进行配置：
+
+1. 开发环境：修改 `frontend/.env.development` 文件
+2. 生产环境：创建 `frontend/.env.production` 文件或设置环境变量
+
+可配置的环境变量：
+- `NEXT_PUBLIC_API_BASE_URL`: API基础地址（默认：http://localhost:8080）
+- `NEXT_PUBLIC_API_URL`: API完整路径（默认：http://localhost:8080/api）
+
+示例：
+```bash
+# 开发环境
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
+
+# 生产环境
+NEXT_PUBLIC_API_BASE_URL=https://api.playableadsmaker.com
+NEXT_PUBLIC_API_URL=https://api.playableadsmaker.com/api
+```

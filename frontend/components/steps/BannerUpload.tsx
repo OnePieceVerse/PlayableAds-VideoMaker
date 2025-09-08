@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
+import config, { API_PATHS, getFullUrl } from "@/config/api";
 
 interface BannerUploadProps {
   formData: any;
@@ -86,7 +87,7 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       uploadData.append("position", position);
 
       // Upload to backend API
-      const response = await fetch("http://localhost:8080/api/upload", {
+      const response = await fetch(API_PATHS.upload, {
         method: "POST",
         body: uploadData,
       });
@@ -106,7 +107,7 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
         ...formData.banners,
         [position]: {
           id: data.file_id,
-          url: `http://localhost:8080${data.url}`,
+          url: getFullUrl(data.url),
           position: position === "left" 
             ? (videoIsLandscape ? { left: 0, top: 50 } : { left: 0, top: 0 })
             : (videoIsLandscape ? { left: 83.33, top: 50 } : { left: 50, top: 83.33 }),

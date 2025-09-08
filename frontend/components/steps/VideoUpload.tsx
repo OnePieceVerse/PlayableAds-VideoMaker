@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
+import config, { API_PATHS, getFullUrl } from "@/config/api";
 
 interface VideoUploadProps {
   formData: any;
@@ -100,7 +101,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
       // 不传递project_id，让后端自动创建
 
       // Upload to backend API
-      const response = await fetch("http://localhost:8080/api/upload", {
+      const response = await fetch(API_PATHS.upload, {
         method: "POST",
         body: uploadFormData,
       });
@@ -127,7 +128,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
       // Update form data with video information
       updateFormData("video", {
         id: data.file_id,
-        url: `http://localhost:8080${data.url}`,
+        url: getFullUrl(data.url),
         metadata: data.metadata,
         name: data.file_id,
         originalName: acceptedFiles[0].name
