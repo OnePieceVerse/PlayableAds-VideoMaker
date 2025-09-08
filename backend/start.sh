@@ -1,4 +1,6 @@
-env=$(basename "$PWD")
+# env=$(basename "$PWD")
+env=playableall-video
+mkdir -p log projects
 
 # 初始化conda环境，不然每次activate切换环境会失败，默认在base环境
 source /root/.bashrc
