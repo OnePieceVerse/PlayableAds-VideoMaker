@@ -146,6 +146,6 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_API_URL=http://localhost:8080/api
 
 # 生产环境
-NEXT_PUBLIC_API_BASE_URL=https://api.playableadsmaker.com
-NEXT_PUBLIC_API_URL=https://api.playableadsmaker.com/api
+NEXT_PUBLIC_API_BASE_URL=https://playableall-video.woa.com
+NEXT_PUBLIC_API_URL=https://playableall-video.woa.com/api
 ```
