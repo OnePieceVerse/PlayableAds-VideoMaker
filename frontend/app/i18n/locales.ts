@@ -57,7 +57,7 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
   zh: {
     appName: '试玩广告制作平台',
     heroTitle: '试玩广告制作平台',
-    heroDescription: '通过互动式可玩广告提升您的应用营销效果。创建、自定义和部署能够提高转化率的吸引人广告。',
+    heroDescription: '通过互动式试玩广告提升您的应用营销效果。创建、自定义和部署能够提高转化率的吸引人广告。',
     startCreatingNow: '立即开始创建',
     watchDemo: '观看演示',
     whyChoose: '为什么选择试玩广告制作平台？',

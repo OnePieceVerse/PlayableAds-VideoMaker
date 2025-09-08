@@ -156,9 +156,14 @@ export default function Home() {
                   </svg>
                 </span>
               </Link>
-              <button className="px-8 py-4 bg-white text-gray-800 font-medium rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all duration-300 shadow-sm hover:shadow">
+              <Link 
+                href="https://playableall.woa.com/works.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-8 py-4 bg-white text-gray-800 font-medium rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all duration-300 shadow-sm hover:shadow"
+              >
                 {translations.watchDemo}
-              </button>
+              </Link>
             </div>
 
             {/* Stats */}

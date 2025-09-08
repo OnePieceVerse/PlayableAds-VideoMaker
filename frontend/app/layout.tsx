@@ -6,8 +6,8 @@ import { LanguageProvider } from "./i18n/LanguageContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "可玩广告制作工具 | Playable Ads Maker",
-  description: "创建交互式可玩广告，支持多平台 | Create interactive playable ads for multiple platforms",
+  title: "试玩广告制作工具 | Playable Ads Maker",
+  description: "创建交互式试玩广告，支持多平台 | Create interactive playable ads for multiple platforms",
   alternates: {
     languages: {
       'zh-CN': '/zh',
