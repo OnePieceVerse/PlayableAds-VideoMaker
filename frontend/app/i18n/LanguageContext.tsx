@@ -49,14 +49,29 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = newLocale;
   };
 
+  // 修复t函数，确保在找不到翻译时返回键名
   const t = (key: TranslationKey): string => {
-    return translations[locale][key] || translations['en'][key] || key;
+    if (!mounted) {
+      // 服务器端渲染时，始终使用默认语言
+      return translations[defaultLocale][key] || key;
+    }
+    
+    // 客户端渲染时，使用当前语言，如果找不到则回退到英语，再找不到则返回键名
+    return (
+      (translations[locale] && translations[locale][key]) || 
+      (translations['en'] && translations['en'][key]) || 
+      key
+    );
   };
 
-  // 在客户端水合之前，使用服务器端默认值
+  // 在服务器端渲染时，使用默认语言
   if (!mounted) {
     return (
-      <LanguageContext.Provider value={{ locale: defaultLocale, setLocale, t: (key) => translations[defaultLocale][key] || key }}>
+      <LanguageContext.Provider value={{ 
+        locale: defaultLocale, 
+        setLocale, 
+        t 
+      }}>
         {children}
       </LanguageContext.Provider>
     );

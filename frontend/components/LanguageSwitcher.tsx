@@ -52,7 +52,7 @@ export default function LanguageSwitcher() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={toggleDropdown}
-        className="flex items-center space-x-2 py-2 px-3 rounded-md bg-white border border-gray-200 hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+        className="flex items-center space-x-2 py-2 px-3 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
         aria-label="选择语言"
       >
         <span className="text-lg">{languageOptions[locale].flag}</span>
@@ -68,7 +68,7 @@ export default function LanguageSwitcher() {
       </button>
       
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 animate-fadeIn">
+        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-gray-200 z-50 animate-fadeIn">
           <div className="py-1" role="menu" aria-orientation="vertical">
             {Object.entries(languageOptions).map(([code, { name, flag }]) => (
               <button
@@ -76,7 +76,7 @@ export default function LanguageSwitcher() {
                 onClick={() => changeLanguage(code as Locale)}
                 className={`flex items-center w-full px-4 py-2 text-sm ${
                   locale === code
-                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    ? 'bg-gray-100 text-gray-900 font-medium'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
                 role="menuitem"
@@ -84,7 +84,7 @@ export default function LanguageSwitcher() {
                 <span className="text-lg mr-3">{flag}</span>
                 <span>{name}</span>
                 {locale === code && (
-                  <svg className="ml-auto w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="ml-auto w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 )}
