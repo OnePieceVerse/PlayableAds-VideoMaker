@@ -18,12 +18,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="zh">
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <LanguageProvider>
           <div className="min-h-screen bg-gray-50">
             {children}
@@ -31,5 +31,5 @@ export default function RootLayout({
         </LanguageProvider>
       </body>
     </html>
-  );
+  )
 }

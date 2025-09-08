@@ -78,7 +78,7 @@ async def upload_file(
     type: FileType = Form(...),
     step: StepType = Form(...),
     project_id: str = Form(None),
-    position: Position = Form(None)
+    position: str = Form(None)  # 修改为str类型
 ):
     """
     上传文件API
@@ -89,9 +89,11 @@ async def upload_file(
     - **type**: 文件类型 (video/image)
     - **step**: 步骤类型 (video_upload/pause_frames/cta_buttons/banner_images/export_ad)
     - **project_id**: 项目ID（可选，如果提供则使用已存在的项目目录）
-    - **position**: 位置信息（可选）
+    - **position**: 位置信息（可选，如left、right等）
     """
     try:
+        print(f"Received upload request: type={type}, step={step}, project_id={project_id}, position={position}")
+        
         # 验证文件类型
         if not validate_file_type(file, type):
             return JSONResponse(
@@ -160,6 +162,7 @@ async def upload_file(
             "is_duplicate": is_duplicate
         }
     except Exception as e:
+        print(f"Upload error: {str(e)}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}

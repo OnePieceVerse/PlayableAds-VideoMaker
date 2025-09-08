@@ -16,7 +16,14 @@ class StepType(str, Enum):
     EXPORT_AD = "export_ad"
 
 
-class Position(BaseModel):
+class Position(str, Enum):
+    LEFT = "left"
+    RIGHT = "right"
+    TOP = "top"
+    BOTTOM = "bottom"
+
+
+class PositionCoord(BaseModel):
     left: float
     top: float
 
@@ -24,17 +31,17 @@ class Position(BaseModel):
 class PauseFrame(BaseModel):
     time: float
     image_id: str
-    position: Position
+    position: PositionCoord
     scale: float = 1.0
     buttonImage_id: Optional[str] = None
-    buttonPosition: Optional[Position] = None
+    buttonPosition: Optional[PositionCoord] = None
     buttonScale: Optional[float] = None
 
 
 class CTAButton(BaseModel):
     type: str  # fulltime or endscreen
     image_id: str
-    position: Position
+    position: PositionCoord
     scale: float = 1.0
     time: Optional[float] = None  # For endscreen button
 
@@ -42,15 +49,15 @@ class CTAButton(BaseModel):
 class Banner(BaseModel):
     type: str  # left/top or right/bottom
     image_id: str
-    position: Position
+    position: PositionCoord
     scale: float = 1.0
 
 
 class BannerConfig(BaseModel):
     left_image_id: Optional[str] = None
     right_image_id: Optional[str] = None
-    left_position: Optional[Position] = None
-    right_position: Optional[Position] = None
+    left_position: Optional[PositionCoord] = None
+    right_position: Optional[PositionCoord] = None
     left_scale: Optional[float] = None
     right_scale: Optional[float] = None
 

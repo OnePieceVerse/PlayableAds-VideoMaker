@@ -249,33 +249,31 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
   const startDrag = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current || !videoRect) return;
     
-    setIsDragging(true);
+    // 获取图片元素
+    const imgElement = e.currentTarget as HTMLDivElement;
+    const imgRect = imgElement.getBoundingClientRect();
     
-    // 记录初始点击位置与当前按钮位置的偏移量
-    const initialX = e.clientX;
-    const initialY = e.clientY;
-    const initialLeft = position.left;
-    const initialTop = position.top;
+    // 计算鼠标在图片内的相对位置（百分比）
+    const offsetX = (e.clientX - imgRect.left) / imgRect.width;
+    const offsetY = (e.clientY - imgRect.top) / imgRect.height;
+    
+    setIsDragging(true);
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!videoRect) return;
       
-      // 计算鼠标移动的距离（相对于初始点击位置）
-      const deltaX = moveEvent.clientX - initialX;
-      const deltaY = moveEvent.clientY - initialY;
+      // 计算新位置，考虑鼠标在图片内的偏移
+      const newX = moveEvent.clientX - videoRect.x - (imgRect.width * offsetX);
+      const newY = moveEvent.clientY - videoRect.y - (imgRect.height * offsetY);
       
-      // 将移动距离转换为百分比
-      const deltaXPercent = (deltaX / videoRect.width) * 100;
-      const deltaYPercent = (deltaY / videoRect.height) * 100;
-      
-      // 基于初始位置和移动距离计算新位置
-      const newLeft = initialLeft + deltaXPercent;
-      const newTop = initialTop + deltaYPercent;
+      // 将鼠标位置转换为百分比位置，加上偏移量的一半
+      const newPercentageX = ((newX + imgRect.width / 2) / videoRect.width) * 100;
+      const newPercentageY = ((newY + imgRect.height / 2) / videoRect.height) * 100;
       
       // 限制在0-100范围内
       setPosition({
-        left: Math.max(0, Math.min(100, newLeft)),
-        top: Math.max(0, Math.min(100, newTop)),
+        left: Math.max(0, Math.min(100, newPercentageX)),
+        top: Math.max(0, Math.min(100, newPercentageY)),
       });
     };
     
@@ -287,6 +285,9 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+    
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
@@ -574,22 +575,27 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
               onSeeked={handleVideoSeeked}
             />
             
-            {/* Current button preview */}
+            {/* 当前按钮预览 */}
             {currentButton && videoRect && (
               <div
-                className={`absolute cursor-move ${isDragging ? 'pointer-events-none' : ''}`}
+                className={`absolute ${isDragging ? 'pointer-events-none' : 'cursor-move'}`}
                 style={{
                   left: `${position.left}%`,
                   top: `${position.top}%`,
                   transform: `translate(-50%, -50%)`,
                   width: `${scale * 100}%`,
+                  transition: isDragging ? 'none' : 'all 0.05s ease-out',
+                  touchAction: 'none'
                 }}
                 onMouseDown={startDrag}
               >
-                <img 
-                  src={currentButton.image.url} 
-                  alt="CTA Button" 
-                  className="w-full h-full object-contain pointer-events-none"
+                <img
+                  src={currentButton.image.url}
+                  alt="CTA Button"
+                  className="pointer-events-none w-full h-full object-contain"
+                  draggable="false"
+                  width={48}
+                  height={48}
                 />
               </div>
             )}

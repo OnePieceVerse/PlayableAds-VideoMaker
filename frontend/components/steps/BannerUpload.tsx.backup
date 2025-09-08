@@ -225,14 +225,12 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
     
     console.log(`初始位置: left=${initialLeft}, top=${initialTop}`);
     
-    // 立即设置状态
     setIsDraggingBanner(true);
     setDraggingBannerType(bannerType);
     
     // 添加全局鼠标移动和释放事件
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      // 直接使用bannerType而不是draggingBannerType状态
-      if (bannerType !== "left" && bannerType !== "right") return;
+      if (!draggingBannerType) return;
       
       // 获取视频容器
       const container = document.getElementById('video-container');
@@ -264,12 +262,11 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       
       // 更新 Banner 位置
       const updatedBanners = { ...formData.banners };
-      if (updatedBanners[bannerType]) {
-        updatedBanners[bannerType] = {
-          ...updatedBanners[bannerType]!,
+      if (updatedBanners[draggingBannerType]) {
+        updatedBanners[draggingBannerType] = {
+          ...updatedBanners[draggingBannerType]!,
           position: { left: clampedX, top: clampedY }
         };
-        console.log('更新banners:', updatedBanners);
         updateFormData("banners", updatedBanners);
       }
     };
@@ -398,10 +395,10 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
                         touchAction: 'none',
                         transition: isDraggingBanner && draggingBannerType === "left" ? 'none' : 'all 0.05s ease-out',
                         zIndex: 10,
-                        
-                        
-                        
-                        
+                        border: '2px dashed rgba(59, 130, 246, 0.5)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        padding: '2px',
+                        borderRadius: '4px'
                       }}
                       onMouseDown={(e) => startBannerDrag(e, "left")}
                     >
@@ -426,10 +423,10 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
                         touchAction: 'none',
                         transition: isDraggingBanner && draggingBannerType === "right" ? 'none' : 'all 0.05s ease-out',
                         zIndex: 10,
-                        
-                        
-                        
-                        
+                        border: '2px dashed rgba(59, 130, 246, 0.5)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        padding: '2px',
+                        borderRadius: '4px'
                       }}
                       onMouseDown={(e) => startBannerDrag(e, "right")}
                     >
@@ -482,10 +479,10 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
                         touchAction: 'none',
                         transition: isDraggingBanner && draggingBannerType === "right" ? 'none' : 'all 0.05s ease-out',
                         zIndex: 10,
-                        
-                        
-                        
-                        
+                        border: '2px dashed rgba(59, 130, 246, 0.5)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        padding: '2px',
+                        borderRadius: '4px'
                       }}
                       onMouseDown={(e) => startBannerDrag(e, "right")}
                     >

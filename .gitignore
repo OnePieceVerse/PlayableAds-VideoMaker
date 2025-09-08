@@ -1,6 +1,7 @@
 # Frontend
 node_modules
 .next
+dist/
 
 # Backend
 __pycache__/

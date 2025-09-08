@@ -412,13 +412,13 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     const rect = videoRect;
     if (!rect) return;
 
-    // 获取图片元素
-    const imgElement = e.currentTarget as HTMLDivElement;
-    const imgRect = imgElement.getBoundingClientRect();
+    // 记录初始点击位置
+    const initialClientX = e.clientX;
+    const initialClientY = e.clientY;
     
-    // 计算鼠标在图片内的相对位置（百分比）
-    const offsetX = (e.clientX - imgRect.left) / imgRect.width;
-    const offsetY = (e.clientY - imgRect.top) / imgRect.height;
+    // 记录初始图片位置
+    const initialLeft = position.left;
+    const initialTop = position.top;
 
     setIsDragging(true);
     
@@ -426,18 +426,22 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!rect) return;
       
-      // 计算新位置，考虑鼠标在图片内的偏移
-      const newX = moveEvent.clientX - rect.x;
-      const newY = moveEvent.clientY - rect.y;
+      // 计算鼠标移动距离（像素）
+      const deltaX = moveEvent.clientX - initialClientX;
+      const deltaY = moveEvent.clientY - initialClientY;
       
-      // 将鼠标位置转换为百分比位置
-      const newPercentageX = (newX / rect.width) * 100;
-      const newPercentageY = (newY / rect.height) * 100;
+      // 将像素距离转换为百分比距离
+      const deltaPercentX = (deltaX / rect.width) * 100;
+      const deltaPercentY = (deltaY / rect.height) * 100;
+      
+      // 基于初始位置计算新位置
+      const newLeft = initialLeft + deltaPercentX;
+      const newTop = initialTop + deltaPercentY;
       
       // 设置新位置，确保图片不会超出边界
       setPosition({
-        left: Math.max(0, Math.min(100, newPercentageX)),
-        top: Math.max(0, Math.min(100, newPercentageY))
+        left: Math.max(0, Math.min(100, newLeft)),
+        top: Math.max(0, Math.min(100, newTop))
       });
     };
     
@@ -452,7 +456,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     
     e.preventDefault();
     e.stopPropagation();
-  }, [isDraggingButton, videoRect]);
+  }, [isDraggingButton, videoRect, position]);
 
   // 拖动按钮图片
   const startButtonDrag = useCallback((e: React.MouseEvent) => {
@@ -462,13 +466,13 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     const rect = videoRect;
     if (!rect) return;
 
-    // 获取图片元素
-    const imgElement = e.currentTarget as HTMLDivElement;
-    const imgRect = imgElement.getBoundingClientRect();
+    // 记录初始点击位置
+    const initialClientX = e.clientX;
+    const initialClientY = e.clientY;
     
-    // 计算鼠标在图片内的相对位置（百分比）
-    const offsetX = (e.clientX - imgRect.left) / imgRect.width;
-    const offsetY = (e.clientY - imgRect.top) / imgRect.height;
+    // 记录初始按钮位置
+    const initialLeft = buttonPosition.left;
+    const initialTop = buttonPosition.top;
 
     setIsDraggingButton(true);
     
@@ -476,18 +480,22 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!rect) return;
       
-      // 计算新位置，考虑鼠标在图片内的偏移
-      const newX = moveEvent.clientX - rect.x;
-      const newY = moveEvent.clientY - rect.y;
+      // 计算鼠标移动距离（像素）
+      const deltaX = moveEvent.clientX - initialClientX;
+      const deltaY = moveEvent.clientY - initialClientY;
       
-      // 将鼠标位置转换为百分比位置
-      const newPercentageX = (newX / rect.width) * 100;
-      const newPercentageY = (newY / rect.height) * 100;
+      // 将像素距离转换为百分比距离
+      const deltaPercentX = (deltaX / rect.width) * 100;
+      const deltaPercentY = (deltaY / rect.height) * 100;
+      
+      // 基于初始位置计算新位置
+      const newLeft = initialLeft + deltaPercentX;
+      const newTop = initialTop + deltaPercentY;
       
       // 设置新位置，确保图片不会超出边界
       setButtonPosition({
-        left: Math.max(0, Math.min(100, newPercentageX)),
-        top: Math.max(0, Math.min(100, newPercentageY))
+        left: Math.max(0, Math.min(100, newLeft)),
+        top: Math.max(0, Math.min(100, newTop))
       });
     };
     
@@ -502,7 +510,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
     
     e.preventDefault();
     e.stopPropagation();
-  }, [isDragging, videoRect]);
+  }, [isDragging, videoRect, buttonPosition]);
 
   // 拖动结束
   const handleDragEnd = useCallback(() => {
@@ -887,7 +895,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   transform: `translate(-50%, -50%)`,
                   width: `${buttonScale * 100}%`,
                   zIndex: 10,
-                  transition: isDraggingButton ? 'none' : 'transform 0.1s ease-out'
+                  transition: isDraggingButton ? 'none' : 'all 0.05s ease-out',
+                  touchAction: 'none'
                 }}
                 onMouseDown={startButtonDrag}
               >
@@ -897,6 +906,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   width={48}
                   height={48}
                   className="pointer-events-none w-full h-full object-contain"
+                  draggable="false"
                 />
               </div>
             )}
@@ -911,7 +921,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   transform: `translate(-50%, -50%)`,
                   width: `${buttonScale * 100}%`,
                   zIndex: 10,
-                  transition: isDraggingButton ? 'none' : 'transform 0.1s ease-out'
+                  transition: isDraggingButton ? 'none' : 'all 0.05s ease-out',
+                  touchAction: 'none'
                 }}
                 onMouseDown={startButtonDrag}
               >
@@ -921,6 +932,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   width={48}
                   height={48}
                   className="pointer-events-none w-full h-full object-contain"
+                  draggable="false"
                 />
               </div>
             )}
@@ -935,7 +947,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   transform: `translate(-50%, -50%)`,
                   width: `${scale * 100}%`,
                   zIndex: 20,
-                  transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                  transition: isDragging ? 'none' : 'all 0.05s ease-out',
+                  touchAction: 'none'
                 }}
                 onMouseDown={startDrag}
               >
@@ -945,6 +958,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   width={48}
                   height={48}
                   className="pointer-events-none w-full h-full object-contain"
+                  draggable="false"
                 />
               </div>
             )}
@@ -959,7 +973,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   transform: `translate(-50%, -50%)`,
                   width: `${scale * 100}%`,
                   zIndex: 20,
-                  transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                  transition: isDragging ? 'none' : 'all 0.05s ease-out',
+                  touchAction: 'none'
                 }}
                 onMouseDown={startDrag}
               >
@@ -969,6 +984,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   width={48}
                   height={48}
                   className="pointer-events-none w-full h-full object-contain"
+                  draggable="false"
                 />
               </div>
             )}
