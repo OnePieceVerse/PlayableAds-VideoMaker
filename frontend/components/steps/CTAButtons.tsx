@@ -2,7 +2,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import config, { API_PATHS, getFullUrl } from "@/config/api";
+import { API_PATHS, getFullUrl } from "@/config/api";
+
+// 定义错误类型
+interface ErrorType {
+  message: string;
+}
 
 interface CTAButton {
   id: string;
@@ -351,8 +356,9 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
 
       setCurrentButton(newButton);
       setUploading(false);
-    } catch (err: any) {
-      setError(err.message || "An error occurred during upload");
+    } catch (err: ErrorType | unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMessage);
       setUploading(false);
     }
   };

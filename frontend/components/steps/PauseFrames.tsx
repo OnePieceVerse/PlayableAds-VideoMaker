@@ -2,8 +2,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import Image from "next/image";
-import config, { API_PATHS, getFullUrl } from "@/config/api";
+import { API_PATHS, getFullUrl } from "@/config/api";
+
+// 定义错误类型
+interface ErrorType {
+  message: string;
+}
 
 interface PauseFrame {
   id: string;
@@ -619,8 +623,10 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       }
       
       setUploading(false);
-    } catch (err: any) {
-      setError(err.message || "An error occurred during upload");
+    } catch (err: ErrorType | unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      console.error(errorMessage);
+      setError(errorMessage || "An error occurred during upload");
       setUploading(false);
     }
   };
@@ -701,8 +707,10 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       }
       
       setButtonUploading(false);
-    } catch (err: any) {
-      setError(err.message || "An error occurred during button image upload");
+    } catch (err: ErrorType | unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      console.error(errorMessage);
+      setError(errorMessage || "An error occurred during button image upload");
       setButtonUploading(false);
     }
   };
@@ -883,11 +891,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                 }}
                 onMouseDown={startButtonDrag}
               >
-                <img 
+                <img
                   src={currentFrame.buttonImage.url} 
                   alt="Button" 
+                  width={48}
+                  height={48}
                   className="pointer-events-none w-full h-full object-contain"
-                  draggable="false"
                 />
               </div>
             )}
@@ -906,11 +915,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                 }}
                 onMouseDown={startButtonDrag}
               >
-                <img 
+                <img
                   src={editingFrame.buttonImage.url} 
                   alt="Button" 
+                  width={48}
+                  height={48}
                   className="pointer-events-none w-full h-full object-contain"
-                  draggable="false"
                 />
               </div>
             )}
@@ -929,11 +939,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                 }}
                 onMouseDown={startDrag}
               >
-                <img 
+                <img
                   src={currentFrame.image.url} 
                   alt="Guide" 
+                  width={48}
+                  height={48}
                   className="pointer-events-none w-full h-full object-contain"
-                  draggable="false"
                 />
               </div>
             )}
@@ -952,11 +963,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                 }}
                 onMouseDown={startDrag}
               >
-                <img 
+                <img
                   src={editingFrame.image.url} 
                   alt="Guide" 
+                  width={48}
+                  height={48}
                   className="pointer-events-none w-full h-full object-contain"
-                  draggable="false"
                 />
               </div>
             )}
@@ -1041,6 +1053,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                       <img
                         src={frame.image.url}
                         alt="Frame preview"
+                        width={48}
+                        height={48}
                         className="w-full h-full object-contain"
                       />
                     </div>
@@ -1109,8 +1123,10 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                   <div className="flex items-center space-x-4">
                     <div className="h-16 w-16 flex-shrink-0 rounded overflow-hidden bg-gray-200 border border-gray-300 flex items-center justify-center">
                       <img
-                        src={(currentFrame || editingFrame)?.image.url}
+                        src={(currentFrame || editingFrame)?.image.url || ''}
                         alt="Frame preview"
+                        width={48}
+                        height={48}
                         className="w-full h-full object-contain"
                       />
                     </div>
@@ -1328,6 +1344,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                               src={(currentFrame?.buttonImage || editingFrame?.buttonImage)?.url}
                               alt="Button"
                               className="w-full h-full object-contain"
+                              draggable="false"
                             />
                           </div>
                           <div>
@@ -1568,6 +1585,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                           <img
                             src={frame.image.url}
                             alt="Guide"
+                            width={48}
+                            height={48}
                             className="w-full h-full object-contain"
                           />
                         </div>
@@ -1576,6 +1595,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                             <img
                               src={frame.buttonImage.url}
                               alt="Button"
+                              width={48}
+                              height={48}
                               className="w-full h-full object-contain"
                             />
                             <div className="absolute bottom-0 right-0 bg-blue-500 text-white text-xs px-1 rounded-tl">BTN</div>

@@ -2,7 +2,12 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import config, { API_PATHS, getFullUrl } from "@/config/api";
+import { API_PATHS, getFullUrl } from "@/config/api";
+
+// 定义错误类型
+interface ErrorType {
+  message: string;
+}
 
 interface BannerUploadProps {
   formData: any;
@@ -116,8 +121,9 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       });
 
       setUploading(null);
-    } catch (err: any) {
-      setError(err.message || "An error occurred during upload");
+    } catch (err: ErrorType | unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMessage);
       setUploading(null);
     }
   };

@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import config, { API_PATHS, getFullUrl } from "@/config/api";
+import { API_PATHS, getFullUrl } from "@/config/api";
+
+// 定义错误类型
+interface ErrorType {
+  message: string;
+}
 
 // 定义类型
 type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "tiktok" | "all";
@@ -321,8 +326,9 @@ const generateAd = async () => {
       } else {
         setErrorMessage(`Failed to generate ad: ${data.error}`);
       }
-    } catch (error: any) {
-      setErrorMessage(`Error generating ad: ${error.message || String(error)}`);
+    } catch (err: ErrorType | unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      setErrorMessage(`Error generating ad: ${errorMessage}`);
     } finally {
       setGenerating(false);
     }
