@@ -29,6 +29,8 @@ export type TranslationKey =
   | 'ctaDescription'
   | 'getStartedFree'
   | 'features'
+  | 'featuresTitle'
+  | 'featuresDescription'
   | 'pricing'
   | 'backToHome'
   | 'createPlayableAd'
@@ -36,6 +38,7 @@ export type TranslationKey =
   | 'addPauseFrames'
   | 'addCTAButtons'
   | 'addBannersOptional'
+  | 'addAudio'
   | 'export'
   | 'workflowTitle'
   | 'workflowHeading'
@@ -59,7 +62,8 @@ export type TranslationKey =
   | 'interactiveImage'
   | 'interactiveVideoDesc'
   | 'interactiveImageDesc'
-  | 'chooseProjectType';
+  | 'chooseProjectType'
+  | 'learnMore';
 
 export const translations: Record<Locale, Record<TranslationKey, string>> = {
   zh: {
@@ -86,6 +90,8 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     ctaDescription: '加入已经使用试玩广告制作平台提高转化率的数千名应用营销人员的行列。',
     getStartedFree: '免费开始使用',
     features: '功能特点',
+    featuresTitle: '功能特点',
+    featuresDescription: '为现代应用营销人员设计的专业工具',
     pricing: '价格方案',
     backToHome: '返回首页',
     createPlayableAd: '创建试玩广告',
@@ -93,55 +99,59 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     addPauseFrames: '添加暂停帧',
     addCTAButtons: '添加CTA按钮',
     addBannersOptional: '添加横幅（可选）',
+    addAudio: '添加音频',
     export: '导出',
     workflowTitle: '工作流程',
     workflowHeading: '简单三步，创建专业广告',
     workflowDescription: '无需编程技能，通过直观的拖拽界面，快速创建高质量的互动广告',
     step1Title: '上传视频',
-    step1Description: '上传您的产品视频，支持多种格式，自动优化压缩',
+    step1Description: '上传您的应用视频，支持多种格式和分辨率',
     step2Title: '添加互动元素',
-    step2Description: '拖拽添加暂停帧、CTA按钮、横幅等互动元素',
-    step3Title: '导出发布',
-    step3Description: '一键导出多平台格式，直接发布到各大广告平台',
+    step2Description: '添加暂停帧、按钮、横幅等互动元素',
+    step3Title: '导出广告',
+    step3Description: '一键导出到各大广告平台，立即开始投放',
     platformTitle: '平台支持',
     platformHeading: '支持主流广告平台',
-    platformDescription: '一次创建，多平台发布，覆盖所有主流广告渠道',
-    statsAdsCreated: '广告创建',
-    statsPlatformsSupported: '平台支持',
+    platformDescription: '一次创建，多平台投放，覆盖所有主流广告渠道',
+    statsAdsCreated: '广告创建数量',
+    statsPlatformsSupported: '支持平台数量',
     statsUserSatisfaction: '用户满意度',
     selectProjectType: '选择项目类型',
     uploadImage: '上传图片',
-    addHotspots: '添加热点区域',
+    addHotspots: '添加热点',
     interactiveVideo: '互动视频',
     interactiveImage: '互动图片',
-    interactiveVideoDesc: '上传视频并添加互动元素，创建引人入胜的互动视频广告',
-    interactiveImageDesc: '上传图片并添加可点击区域，创建简单有效的互动图片广告',
-    chooseProjectType: '选择项目类型'
+    interactiveVideoDesc: '创建具有暂停帧、按钮和横幅的互动视频广告',
+    interactiveImageDesc: '创建具有可点击热点的互动图片广告',
+    chooseProjectType: '选择项目类型',
+    learnMore: '了解更多'
   },
   en: {
-    appName: 'Playable Ads Maker',
-    heroTitle: 'Playable Ads Maker',
-    heroDescription: 'Transform your app marketing with interactive playable ads. Create, customize, and deploy engaging ads that convert.',
+    appName: 'Playable Ad Maker',
+    heroTitle: 'Create Engaging Playable Ads',
+    heroDescription: 'Boost your app marketing with interactive playable ads. Create, customize, and deploy compelling ads that drive conversions.',
     startCreatingNow: 'Start Creating Now',
     watchDemo: 'Watch Demo',
-    whyChoose: 'Why Choose Playable Ads Platform?',
+    whyChoose: 'Why Choose Playable Ad Maker?',
     whyChooseSubtitle: 'Professional tools designed for modern app marketers',
     feature1Title: 'Drag & Drop Simplicity',
     feature1Description: 'No coding required. Upload your video and customize with our intuitive interface.',
     feature2Title: 'Multi-Platform Support',
-    feature2Description: 'Export for Google Ads, Facebook, AppLovin, Unity, and more platforms.',
+    feature2Description: 'Export ads for Google Ads, Facebook, AppLovin, Unity, and more platforms.',
     feature3Title: 'Interactive Elements',
-    feature3Description: 'Add pause frames, CTA buttons, banners, and custom interactions.',
+    feature3Description: 'Add pause frames, call-to-action buttons, banners, and custom interactions.',
     feature4Title: 'Real-time Preview',
-    feature4Description: 'See your changes instantly with our live preview system.',
+    feature4Description: 'See your changes instantly with our real-time preview system.',
     feature5Title: 'Professional Templates',
     feature5Description: 'Start with proven templates or create from scratch.',
     feature6Title: 'Analytics Ready',
     feature6Description: 'Built-in tracking and analytics to measure your ad performance.',
-    ctaTitle: 'Ready to Create Your First Playable Ad?',
-    ctaDescription: 'Join thousands of app marketers who are already using Playable Ads Platform to boost their conversion rates.',
+    ctaTitle: 'Ready to create your first playable ad?',
+    ctaDescription: 'Join thousands of app marketers who are already using Playable Ad Maker to boost their conversion rates.',
     getStartedFree: 'Get Started Free',
     features: 'Features',
+    featuresTitle: 'Features',
+    featuresDescription: 'Professional tools designed for modern app marketers',
     pricing: 'Pricing',
     backToHome: 'Back to Home',
     createPlayableAd: 'Create Playable Ad',
@@ -149,19 +159,20 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     addPauseFrames: 'Add Pause Frames',
     addCTAButtons: 'Add CTA Buttons',
     addBannersOptional: 'Add Banners (Optional)',
+    addAudio: 'Add Audio',
     export: 'Export',
     workflowTitle: 'Workflow',
     workflowHeading: 'Create Professional Ads in 3 Simple Steps',
-    workflowDescription: 'No programming skills needed. Quickly create high-quality interactive ads with our intuitive drag-and-drop interface',
+    workflowDescription: 'No coding skills required. Create high-quality interactive ads quickly with our intuitive drag-and-drop interface',
     step1Title: 'Upload Video',
-    step1Description: 'Upload your product video, supporting multiple formats with automatic optimization',
+    step1Description: 'Upload your app video, supporting multiple formats and resolutions',
     step2Title: 'Add Interactive Elements',
-    step2Description: 'Drag and drop pause frames, CTA buttons, banners and other interactive elements',
-    step3Title: 'Export & Publish',
-    step3Description: 'One-click export to multiple platform formats, ready to publish on major ad platforms',
+    step2Description: 'Add pause frames, buttons, banners and other interactive elements',
+    step3Title: 'Export Ad',
+    step3Description: 'Export to major ad platforms with one click and start advertising immediately',
     platformTitle: 'Platform Support',
-    platformHeading: 'Support for Major Ad Platforms',
-    platformDescription: 'Create once, publish everywhere. Cover all mainstream advertising channels',
+    platformHeading: 'Support for Mainstream Ad Platforms',
+    platformDescription: 'Create once, deploy everywhere, covering all major advertising channels',
     statsAdsCreated: 'Ads Created',
     statsPlatformsSupported: 'Platforms Supported',
     statsUserSatisfaction: 'User Satisfaction',
@@ -170,8 +181,9 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     addHotspots: 'Add Hotspots',
     interactiveVideo: 'Interactive Video',
     interactiveImage: 'Interactive Image',
-    interactiveVideoDesc: 'Upload a video and add interactive elements to create engaging video ads',
-    interactiveImageDesc: 'Upload an image and add clickable areas to create simple yet effective interactive image ads',
-    chooseProjectType: 'Choose Project Type'
-  }
-}; 
+    interactiveVideoDesc: 'Create interactive video ads with pause frames, buttons, and banners',
+    interactiveImageDesc: 'Create interactive image ads with clickable hotspots',
+    chooseProjectType: 'Choose Project Type',
+    learnMore: 'Learn More'
+  },
+};
