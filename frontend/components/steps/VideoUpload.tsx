@@ -10,15 +10,19 @@ interface ErrorType {
 }
 
 interface VideoUploadProps {
+  prevStep: () => void;
   formData: any;
   updateFormData: (field: string, value: any) => void;
   nextStep: () => void;
+  returnToProjectSelection: () => void;
 }
 
 const VideoUpload: React.FC<VideoUploadProps> = ({
+  prevStep,
   formData,
   updateFormData,
   nextStep,
+  returnToProjectSelection,
 }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -370,7 +374,13 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
         </div>
       )}
 
-      <div className="flex justify-end pt-6">
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={returnToProjectSelection}
+          className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
+        >
+          Back to Selection
+        </button>
         <button
           onClick={handleContinue}
           disabled={!formData.video || uploading}

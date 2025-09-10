@@ -10,6 +10,7 @@ class FileType(str, Enum):
 
 class StepType(str, Enum):
     VIDEO_UPLOAD = "video_upload"
+    IMAGE_UPLOAD = "image_upload"  # New step type for image uploads
     PAUSE_FRAMES = "pause_frames"
     CTA_BUTTONS = "cta_buttons"
     BANNER_IMAGES = "banner_images"

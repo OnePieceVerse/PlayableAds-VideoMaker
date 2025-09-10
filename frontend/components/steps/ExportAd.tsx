@@ -9,7 +9,7 @@ interface ErrorType {
 }
 
 // 定义类型
-type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "tiktok" | "all";
+type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "tiktok" | "wechat" | "all";
 type Language = "en" | "zh" | "";
 
 interface FileInfo {
@@ -33,12 +33,13 @@ interface FilesInfo {
 }
 
 interface StepProps {
+  nextStep: () => void;
   formData: Record<string, any>;
   updateFormData: (field: string, value: any) => void;
   prevStep: () => void;
 }
 
-const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep }) => {
+const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, nextStep, prevStep }) => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformOption[]>([]);
   const [language, setLanguage] = useState<Language>("");
   const [version, setVersion] = useState<string>("v1");
@@ -575,6 +576,21 @@ const generateAd = async () => {
               >
                 TikTok
                 {isPlatformSelected("tiktok") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => handlePlatformChange("wechat")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("wechat")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                WeChat Mini Program
+                {isPlatformSelected("wechat") && (
                   <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>

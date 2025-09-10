@@ -3,8 +3,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  output: 'export',
-  distDir: 'dist',
+  // Removed static export configuration for dynamic routing
 }
 
 module.exports = nextConfig

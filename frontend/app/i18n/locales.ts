@@ -51,7 +51,15 @@ export type TranslationKey =
   | 'platformDescription'
   | 'statsAdsCreated'
   | 'statsPlatformsSupported'
-  | 'statsUserSatisfaction';
+  | 'statsUserSatisfaction'
+  | 'selectProjectType'
+  | 'uploadImage'
+  | 'addHotspots'
+  | 'interactiveVideo'
+  | 'interactiveImage'
+  | 'interactiveVideoDesc'
+  | 'interactiveImageDesc'
+  | 'chooseProjectType';
 
 export const translations: Record<Locale, Record<TranslationKey, string>> = {
   zh: {
@@ -100,7 +108,15 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     platformDescription: '一次创建，多平台发布，覆盖所有主流广告渠道',
     statsAdsCreated: '广告创建',
     statsPlatformsSupported: '平台支持',
-    statsUserSatisfaction: '用户满意度'
+    statsUserSatisfaction: '用户满意度',
+    selectProjectType: '选择项目类型',
+    uploadImage: '上传图片',
+    addHotspots: '添加热点区域',
+    interactiveVideo: '互动视频',
+    interactiveImage: '互动图片',
+    interactiveVideoDesc: '上传视频并添加互动元素，创建引人入胜的互动视频广告',
+    interactiveImageDesc: '上传图片并添加可点击区域，创建简单有效的互动图片广告',
+    chooseProjectType: '选择项目类型'
   },
   en: {
     appName: 'Playable Ads Maker',
@@ -148,6 +164,14 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     platformDescription: 'Create once, publish everywhere. Cover all mainstream advertising channels',
     statsAdsCreated: 'Ads Created',
     statsPlatformsSupported: 'Platforms Supported',
-    statsUserSatisfaction: 'User Satisfaction'
+    statsUserSatisfaction: 'User Satisfaction',
+    selectProjectType: 'Select Project Type',
+    uploadImage: 'Upload Image',
+    addHotspots: 'Add Hotspots',
+    interactiveVideo: 'Interactive Video',
+    interactiveImage: 'Interactive Image',
+    interactiveVideoDesc: 'Upload a video and add interactive elements to create engaging video ads',
+    interactiveImageDesc: 'Upload an image and add clickable areas to create simple yet effective interactive image ads',
+    chooseProjectType: 'Choose Project Type'
   }
 }; 

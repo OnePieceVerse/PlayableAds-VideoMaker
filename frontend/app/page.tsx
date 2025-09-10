@@ -345,7 +345,8 @@ export default function Home() {
               { name: 'Facebook', color: 'bg-indigo-100 text-indigo-600' },
               { name: 'TikTok', color: 'bg-rose-100 text-rose-600' },
               { name: 'AppLovin', color: 'bg-violet-100 text-violet-600' },
-              { name: 'Moloco', color: 'bg-teal-100 text-teal-600' }
+              { name: 'Moloco', color: 'bg-teal-100 text-teal-600' },
+              { name: 'WeChat', color: 'bg-green-100 text-green-600' }
             ].map((platform, index) => (
               <div key={index} className="text-center">
                 <div className={`w-full aspect-square ${platform.color} rounded-xl flex items-center justify-center mb-4 shadow-sm hover:shadow-md transition-shadow duration-300`}>
