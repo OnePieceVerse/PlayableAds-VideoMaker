@@ -495,9 +495,12 @@ const CTAButtonStep: React.FC<StepProps> = ({
         </button>
         <button
           onClick={nextStep}
-          className="px-6 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700"
+          disabled={!currentButton}
+          className={`px-6 py-2 rounded-md ${
+            !currentButton ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+          } text-white font-medium`}
         >
-          {currentButton ? "Continue" : "Skip & Continue"}
+          Continue
         </button>
       </div>
     </div>

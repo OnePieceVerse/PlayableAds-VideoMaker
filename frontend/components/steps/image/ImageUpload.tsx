@@ -70,11 +70,18 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
       // Update form data with the uploaded image
       updateFormData("image", {
+        id: data.file_id,
         file: file,
         url: getFullUrl(data.url),
         width: data.metadata?.width || 0,
         height: data.metadata?.height || 0,
       });
+      
+      // 保存project_id到formData
+      if (data.project_id) {
+        console.log("Saving project_id to formData:", data.project_id);
+        updateFormData("project_id", data.project_id);
+      }
 
       setUploadProgress(100);
       

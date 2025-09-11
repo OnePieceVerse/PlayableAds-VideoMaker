@@ -137,3 +137,29 @@ async def get_video_metadata(file_path: Path) -> dict:
             print(f"Error getting video metadata with OpenCV: {str(cv_error)}")
     
     return metadata 
+
+def get_file_path(file_id: str) -> Path:
+    """
+    根据文件ID获取文件路径
+    
+    Args:
+        file_id: 文件ID
+        
+    Returns:
+        Path: 文件路径
+    """
+    # 项目目录
+    projects_dir = Path("projects")
+    
+    # 遍历所有项目目录
+    for project_dir in projects_dir.glob("*"):
+        if not project_dir.is_dir():
+            continue
+        
+        # 查找文件ID对应的文件
+        for file_path in project_dir.glob("*"):
+            if file_path.stem == file_id:
+                return file_path
+    
+    # 如果找不到文件，返回None
+    return None 

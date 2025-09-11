@@ -32,12 +32,13 @@ app.add_middleware(
 app.mount("/projects", StaticFiles(directory="projects"), name="projects")
 
 # 导入路由
-from backend.app.api import upload, generate, system_audio
+from backend.app.api import upload, generate, system_audio, image_generate
 
 # 注册路由
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 app.include_router(generate.router, prefix="/api", tags=["generate"])
 app.include_router(system_audio.router, prefix="/api", tags=["system-audio"])
+app.include_router(image_generate.router, prefix="/api", tags=["image-generate"])
 
 @app.get("/")
 async def root():

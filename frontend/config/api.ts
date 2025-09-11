@@ -5,8 +5,8 @@
 
 // 开发环境配置
 const dev = {
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080',
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api',
+  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:18080',
+  apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:18080/api',
 };
 
 // 生产环境配置
@@ -24,6 +24,7 @@ export default config;
 export const API_PATHS = {
   upload: `${config.apiUrl}/upload`,
   generate: `${config.apiUrl}/generate`,
+  generateImage: `${config.apiUrl}/generate-image`,
   download: (projectId: string, fileName: string) => `${config.apiUrl}/download/${projectId}/${fileName}`,
   downloadFile: (filePath: string) => `${config.apiUrl}/download-file?file_path=${encodeURIComponent(filePath.replace(/^\//, ""))}`,
   projectFilesInfo: (projectId: string) => `${config.apiUrl}/project-files-info?project_id=${projectId}`,

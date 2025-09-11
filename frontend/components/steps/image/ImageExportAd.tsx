@@ -1,405 +1,724 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { useLanguage } from "@/app/i18n/LanguageContext";
 import { API_PATHS, getFullUrl } from "@/config/api";
 
-type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "tiktok" | "all";
+// 定义错误类型
+interface ErrorType {
+  message: string;
+}
 
-// Define a DefaultHotspotSvg component for the preview
-const DefaultHotspotSvg = () => (
-  <svg 
-    className="w-full h-full text-white animate-pulse-scale" 
-    viewBox="0 0 1448 1024" 
-    xmlns="http://www.w3.org/2000/svg"
-    style={{ filter: 'drop-shadow(0px 0px 3px rgba(0, 0, 0, 0.5))' }}
-  >
-    <path 
-      d="M954.678313 549.757097l-211.405341-125.742315c-7.740635-4.644381-12.729044-1.032085-11.008903 7.740635l44.895682 243.227953c1.720141 8.944734 7.224593 10.148833 12.385016 2.752225 0 0 28.726356-41.111372 52.29229-66.225432l45.239711 67.257517c4.300353 6.364522 13.073072 8.084663 19.26558 3.784311l15.137242-10.492861c6.364522-4.300353 7.912649-13.245087 3.612296-19.609609l-45.239711-67.257517c30.274483-12.55703 72.933983-23.049891 72.933983-23.049891 8.77272-2.236183 9.63279-7.740635 1.892155-12.385016z m-246.668234 79.642533c-0.860071-0.344028-1.720141-0.516042-2.580212-0.516042-72.933983-17.029397-125.742315-84.1149-124.882244-161.349236 1.032085-90.307408 74.310096-162.897363 163.241391-162.037292 84.286914 1.032085 152.920544 67.601545 159.285066 151.200403v0.172015c0 0.860071 0 1.720141 0.172014 2.408197 0.860071 5.332437 4.644381 9.63279 9.460776 11.180917 0.860071 0.172014 1.720141 0.344028 2.408198 0.516043h2.580212c7.224593-0.516042 12.901058-6.536536 13.073072-13.933143v-0.172014c0-0.688056 0-1.204099-0.172014-1.892156-1.376113-20.297665-6.020494-39.907274-13.589115-58.656811-9.288762-23.049891-22.705863-43.691584-39.907273-61.409038-17.201411-17.889467-37.327062-31.82261-59.688897-41.799429-23.221905-10.320847-47.991937-15.653284-73.450025-15.997312-25.630102-0.344028-50.400134 4.472367-73.794053 14.277171-22.705863 9.460776-43.003528 23.049891-60.548967 40.423316-17.545439 17.373425-31.478582 37.843104-41.283387 60.548967-10.148833 23.565933-15.48127 48.679993-15.653284 74.654124-0.516042 46.959852 15.997312 92.543591 46.271796 127.978498 26.490173 30.790526 61.581052 52.29229 100.45624 61.409038 0.860071 0.344028 1.720141 0.516042 2.580212 0.516042 0.516042 0 1.032085 0.172014 1.548127 0.172014 7.740635 0.172014 14.105157-6.192508 14.105157-13.933143 0-6.536536-3.956325-11.868974-9.63279-13.761129z" 
-      fill="currentColor"
-    />
-  </svg>
-);
+// 定义类型
+type PlatformOption = "google" | "facebook" | "applovin" | "moloco" | "tiktok" | "all";
+type Language = "en" | "zh" | "";
+
+interface FileInfo {
+  name: string;
+  size: number;
+  human_size: string;
+}
+
+interface FilesInfo {
+  success: boolean;
+  project_id: string;
+  video_files: FileInfo[];
+  image_files: FileInfo[];
+  other_files: FileInfo[];
+  total_video_size: number;
+  total_image_size: number;
+  human_total_video_size: string;
+  human_total_image_size: string;
+  estimated_html_size: number;
+  human_estimated_html_size: string;
+}
 
 interface StepProps {
+  nextStep: () => void;
   formData: Record<string, any>;
   updateFormData: (field: string, value: any) => void;
   prevStep: () => void;
-  nextStep: () => void;
 }
 
-const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, prevStep, nextStep }) => {
-  const { t } = useLanguage();
-  const [selectedPlatform, setSelectedPlatform] = useState<PlatformOption>(formData.platform || "all");
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
-  const [exportComplete, setExportComplete] = useState(false);
-  const [exportUrl, setExportUrl] = useState("");
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [appName, setAppName] = useState(formData.appName || "");
-  const [appVersion, setAppVersion] = useState(formData.appVersion || "1.0.0");
-  const [language, setLanguage] = useState(formData.language || "en");
+const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, nextStep, prevStep }) => {
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformOption[]>([]);
+  const [language, setLanguage] = useState<Language>("en");
+  const [version, setVersion] = useState<string>("v1");
+  const [appName, setAppName] = useState<string>("PlayableAds");
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState<Record<string, any> | null>(null);
+  const [isLandscape, setIsLandscape] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [filesInfo, setFilesInfo] = useState<FilesInfo | null>(null);
+  const [loadingFilesInfo, setLoadingFilesInfo] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
   
-  // For image preview
-  const imageContainerRef = useRef<HTMLDivElement>(null);
+  // 调试输出
+  console.log("formData in ImageExportAd:", formData);
+  console.log("Button disabled state:", generating || !formData.image || selectedPlatforms.length === 0 || language === "");
+  console.log("formData.image:", formData.image);
+  console.log("selectedPlatforms:", selectedPlatforms);
+  console.log("language:", language);
   
-  // Count saved hotspots
-  const savedHotspots = formData.hotspots?.filter((h: any) => h.isSaved) || [];
-  
-  const handlePlatformSelect = (platform: PlatformOption) => {
-    setSelectedPlatform(platform);
-    updateFormData("platform", platform);
+  // 组件加载时自动选择Google平台
+  useEffect(() => {
+    if (selectedPlatforms.length === 0) {
+      setSelectedPlatforms(["google"]);
+    }
+  }, []);
+
+  // 处理文件信息，去除重复文件
+  const processFilesInfo = (data: FilesInfo) => {
+    // 创建一个映射来跟踪已经处理过的文件内容
+    const processedFiles = new Map();
+    
+    // 处理视频文件
+    const uniqueVideoFiles = data.video_files.filter(file => {
+      const key = file.name;
+      if (!processedFiles.has(key)) {
+        processedFiles.set(key, true);
+        return true;
+      }
+      return false;
+    });
+    
+    // 处理图片文件
+    const uniqueImageFiles = data.image_files.filter(file => {
+      const key = file.name;
+      if (!processedFiles.has(key)) {
+        processedFiles.set(key, true);
+        return true;
+      }
+      return false;
+    });
+    
+    // 处理其他文件
+    const uniqueOtherFiles = data.other_files.filter(file => {
+      const key = file.name;
+      if (!processedFiles.has(key)) {
+        processedFiles.set(key, true);
+        return true;
+      }
+      return false;
+    });
+    
+    return {
+      ...data,
+      video_files: uniqueVideoFiles,
+      image_files: uniqueImageFiles,
+      other_files: uniqueOtherFiles
+    };
   };
 
-  const handleGenerate = async () => {
-    // Save app name, version and language to form data
-    updateFormData("appName", appName);
-    updateFormData("appVersion", appVersion);
-    updateFormData("language", language);
-    
-    // Simulated export process
-    setIsExporting(true);
-    setExportProgress(0);
-    setExportError(null);
-    
+  // 获取项目文件信息
+  const fetchFilesInfo = async () => {
     try {
-      // Simulate export progress
-      const timer = setInterval(() => {
-        setExportProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(timer);
-            return 95;
-          }
-          return prev + 5;
-        });
-      }, 200);
+      setLoadingFilesInfo(true);
+      // Check if project_id exists and is valid
+      if (!formData.project_id) {
+        console.log("No project_id available, skipping files info fetch");
+        setLoadingFilesInfo(false);
+        return;
+      }
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch(API_PATHS.projectFilesInfo(formData.project_id));
       
-      clearInterval(timer);
-      setExportProgress(100);
-      setExportComplete(true);
-      setExportUrl("https://example.com/playable-ad-preview");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch files info: ${response.status} ${response.statusText}`);
+      }
       
-      // Update form data
-      updateFormData("exportedUrl", "https://example.com/playable-ad-preview");
-      updateFormData("exportedPlatform", selectedPlatform);
-      updateFormData("exportedDate", new Date().toISOString());
+      const data = await response.json();
+      if (data.success) {
+        // 处理文件信息，去除重复
+        const processedData = processFilesInfo(data);
+        setFilesInfo(processedData);
+      } else {
+        console.error("Error fetching files info:", data.error || "Unknown error");
+      }
     } catch (error) {
-      setExportError("An error occurred during export. Please try again.");
-      setIsExporting(false);
+      console.error("Error fetching files info:", error);
+      // Don't set error message in UI to avoid disrupting user experience
+      setFilesInfo(null);
+    } finally {
+      setLoadingFilesInfo(false);
     }
   };
 
-  const platforms = [
-    { id: "google", name: "Google Ads", color: "bg-blue-100 text-blue-600" },
-    { id: "facebook", name: "Facebook", color: "bg-indigo-100 text-indigo-600" },
-    { id: "tiktok", name: "TikTok", color: "bg-rose-100 text-rose-600" },
-    { id: "applovin", name: "AppLovin", color: "bg-violet-100 text-violet-600" },
-    { id: "moloco", name: "Moloco", color: "bg-teal-100 text-teal-600" },
-    { id: "all", name: "All Platforms", color: "bg-gray-100 text-gray-600" }
-  ];
+  useEffect(() => {
+    if (formData.video && videoRef.current) {
+      videoRef.current.src = formData.video.url;
+      videoRef.current.load();
+    }
+    
+    // 如果有project_id，获取文件大小信息
+    if (formData.project_id) {
+      try {
+        fetchFilesInfo();
+      } catch (error) {
+        console.error("Error in fetchFilesInfo effect:", error);
+      }
+    }
+  }, [formData.video, formData.project_id]);
 
-  const languages = [
-    { id: "en", name: "English" },
-    { id: "zh", name: "中文" },
-    { id: "ja", name: "日本語" },
-    { id: "ko", name: "한국어" },
-    { id: "es", name: "Español" },
-    { id: "fr", name: "Français" },
-    { id: "de", name: "Deutsch" }
-  ];
+  // 添加消息监听器，接收来自iframe的消息
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data === 'adLoaded') {
+        console.log('Ad loaded in iframe');
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+  
+  const toggleOrientation = () => {
+    setIsLandscape(!isLandscape);
+  };
+
+
+
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setLanguage(e.target.value as Language);
+    setResult(null);
+  };
+
+  const handleVersionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setVersion(e.target.value);
+    setResult(null);
+  };
+
+  const handleAppNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAppName(e.target.value);
+    setResult(null);
+  };
+
+  
+  const handlePlatformChange = (platform: PlatformOption) => {
+    setSelectedPlatforms(prev => {
+      if (platform === "all") {
+        // 如果选择"all"，清空其他选择
+        return ["all"];
+      } else {
+        // 如果选择具体平台，移除"all"并切换当前平台
+        const filtered = prev.filter(p => p !== "all");
+        if (filtered.includes(platform)) {
+          return filtered.filter(p => p !== platform);
+        } else {
+          return [...filtered, platform];
+        }
+      }
+    });
+    setResult(null);
+  };
+
+  const isPlatformSelected = (platform: PlatformOption) => {
+    return selectedPlatforms.includes(platform);
+  };
+const generateAd = async () => {
+    try {
+      setErrorMessage(null);
+      setGenerating(true);
+      
+      // 验证必要参数
+      if (!formData.image || selectedPlatforms.length === 0) {
+        setErrorMessage("Please select an image and platform(s) before generating.");
+        setGenerating(false);
+        return;
+      }
+      
+      // 验证project_id是否存在
+      if (!formData.project_id) {
+        setErrorMessage("Project ID is missing. Please try uploading the image again.");
+        setGenerating(false);
+        return;
+      }
+      
+      // 获取图片方向
+      let orientation = "portrait"; // 默认竖屏
+      if (isLandscape) {
+        orientation = "landscape";
+      }
+      
+      // 准备请求数据
+      const requestData = {
+        project_id: formData.project_id,
+        images: [formData.image.id],
+        platforms: selectedPlatforms, // 使用 selectedPlatforms 数组
+        language: language,
+        version: version,
+        app_name: appName,
+        orientation: orientation,
+        hotspots: formData.hotspots?.length ? formData.hotspots.map((hotspot: any) => ({
+          left: hotspot.position?.left || hotspot.x || 0,
+          top: hotspot.position?.top || hotspot.y || 0,
+          type: hotspot.type || hotspot.action || "popup",
+          url: hotspot.url || "",
+          modalImgs: hotspot.popupContent?.images?.map((img: any) => img.id) || [],
+          modalText: hotspot.popupContent?.title || hotspot.title || "",
+          imgIndex: 0 // 只有一张主图，所以索引为0
+        })) : [],
+        cta_buttons: formData.ctaButton ? [{
+          type: "endscreen",
+          image_id: formData.ctaButton.image?.id,
+          position: {
+            left: (formData.ctaButton.position?.left || 0) / 100,
+            top: (formData.ctaButton.position?.top || 0) / 100
+          },
+          scale: formData.ctaButton.scale || 1.0
+        }] : [],
+        audio_files: formData.audio ? [formData.audio.id] : []
+      };
+      
+      // 发送请求
+      console.log("Sending request to", API_PATHS.generateImage);
+      console.log("Request data:", requestData);
+      
+      const response = await fetch(API_PATHS.generateImage, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
+      });
+      
+      console.log("Response status:", response.status);
+      
+      // 处理响应
+      const data = await response.json();
+      console.log("Response data:", data);
+      
+      if (data.success) {
+        // 确保URL是完整的URL
+        if (data.preview_url) {
+          data.previewUrl = getFullUrl(data.preview_url);
+        }
+        
+        if (data.file_url) {
+          data.fileUrl = getFullUrl(data.file_url);
+        }
+        
+        setResult(data);
+        setGenerating(false);
+        // 获取文件信息
+        fetchFilesInfo();
+      } else {
+        setErrorMessage(data.error || "Failed to generate ad. Please try again.");
+        setGenerating(false);
+      }
+    } catch (err: ErrorType | unknown) {
+      console.error("Error generating ad:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to generate ad. Please try again.";
+      setErrorMessage(errorMessage);
+      setGenerating(false);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const downloadAd = () => {
+    try {
+      // 检查是否是ZIP文件（多平台）
+      if (result?.file_url && result.file_url.includes(".zip")) {
+        // 对于ZIP文件，使用项目ID和文件名
+        const fileName = result.file_url.split("/").pop();
+        const downloadUrl = API_PATHS.download(formData.project_id, fileName);
+        window.open(downloadUrl, "_blank");
+      } else {
+        // 对于单个HTML文件，使用原来的逻辑
+        // 确保使用file_url而不是preview_url
+        const originalPath = result?.file_url || "";
+        
+        // 检查是否是Google、Moloco或TikTok平台，如果是，需要特殊处理
+        if ((selectedPlatforms.includes("google") || selectedPlatforms.includes("moloco") || selectedPlatforms.includes("tiktok")) && selectedPlatforms.length === 1) {
+          // 对于Google、Moloco和TikTok平台，文件URL应该指向ZIP文件
+          const projectId = formData.project_id;
+          const safeAppName = encodeURIComponent(appName);
+          const versionStr = encodeURIComponent(version);
+          const lang = encodeURIComponent(language || "en");
+          const platform = selectedPlatforms.includes("google") ? "google" : 
+                           selectedPlatforms.includes("moloco") ? "moloco" : "tiktok";
+          
+          // 构建ZIP文件名
+          const zipFileName = `${safeAppName}-${platform}-${lang}-${versionStr}.zip`;
+          const downloadUrl = API_PATHS.download(projectId, zipFileName);
+          window.open(downloadUrl, "_blank");
+        } else {
+          // 对于其他平台，使用原始file_url
+          const downloadUrl = API_PATHS.downloadFile(originalPath);
+          window.open(downloadUrl, "_blank");
+        }
+      }
+    } catch (error) {
+      setErrorMessage("Failed to download file. Please try again.");
+    }
+  };
+
+  // 刷新预览
+  const refreshPreview = () => {
+    // 增加refreshKey触发iframe重新加载
+    setRefreshKey(prev => prev + 1);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800">{t('export')}</h2>
-        <p className="text-gray-600">Preview your interactive image and export it to your chosen platform</p>
-      </div>
+    <div className="container mx-auto p-4">
+      <h2 className="text-2xl font-bold mb-6">Export Ad</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left side: Interactive Image Preview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* 左侧：预览区域 */}
         <div>
-          <h3 className="text-lg font-medium mb-4">Interactive Image Preview</h3>
-          
-          <div 
-            ref={imageContainerRef}
-            className="bg-black rounded-lg overflow-hidden relative transition-all duration-300 aspect-[9/16] max-w-[400px] mx-auto"
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-medium text-gray-800">
+              {result ? "Ad Preview" : "Preview Area"}
+            </h3>
+            <div className="flex space-x-2">
+              {result && (
+                <button
+                  className="flex items-center px-3 py-1.5 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+                  onClick={refreshPreview}
+                  title="Refresh Preview"
+                >
+                  <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                  </svg>
+                  <span>Refresh</span>
+                </button>
+              )}
+              <button
+                className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                onClick={toggleOrientation}
+              >
+                <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                {isLandscape ? "Portrait Mode" : "Landscape Mode"}
+              </button>
+            </div>
+          </div>
+
+          <div
+            className={`bg-black rounded-lg overflow-hidden transition-all duration-300 ${
+              isLandscape 
+                ? "aspect-video" 
+                : "aspect-[9/16] max-w-[400px] mx-auto"
+            }`}
           >
-            {formData.image?.url ? (
-              <>
-                <img
-                  src={formData.image.url}
-                  alt="Uploaded image"
-                  className="w-full h-full object-contain"
+            {result && (result.previewUrl || result.preview_url) ? (
+              <React.Fragment>
+                <iframe
+                  ref={iframeRef}
+                  key={`preview-iframe-${refreshKey}`}
+                  src={result.previewUrl || getFullUrl(result.preview_url)}
+                  className={`w-full h-full border-0 ${isLandscape ? "" : "transform rotate-0"}`}
+                  title="Playable Ad Preview"
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"
+                  style={{
+                    transform: isLandscape ? "rotate(0deg)" : "rotate(0deg)",
+                  }}
                 />
-                
-                {/* Render hotspots */}
-                {savedHotspots.map((hotspot: any) => (
-                  <div
-                    key={hotspot.id}
-                    className="absolute cursor-pointer"
-                    style={{
-                      left: `${hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x)}%`,
-                      top: `${hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || hotspot.y)}%`,
-                      width: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
-                      height: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  >
-                    {hotspot.useDefaultSvg ? (
-                      <div className="w-full h-full overflow-hidden">
-                        <DefaultHotspotSvg />
-                      </div>
-                    ) : (
-                      <img
-                        src={hotspot.hotspotImage!.url}
-                        alt={hotspot.hotspotImage!.name}
-                        className="w-full h-full object-cover rounded animate-pulse-scale"
-                        draggable={false}
-                      />
-                    )}
-                  </div>
-                ))}
-                
-                {/* Render CTA button if exists */}
-                {formData.ctaButton && (
-                  <div
-                    className="absolute cursor-pointer"
-                    style={{
-                      left: `${formData.ctaButton.position.left}%`,
-                      top: `${formData.ctaButton.position.top}%`,
-                      width: `${formData.ctaButton.scale * 100}%`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  >
-                    <img
-                      src={formData.ctaButton.image.url}
-                      alt="CTA Button"
-                      className="w-full h-full object-contain"
-                      draggable={false}
-                    />
-                  </div>
-                )}
-              </>
+              </React.Fragment>
+            ) : generating ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                  <p className="text-white text-lg">Generating your ad...</p>
+                </div>
+              </div>
             ) : (
-              <div className="bg-gray-200 w-full h-full flex items-center justify-center">
-                <p className="text-gray-500">No image available</p>
+              <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                <div className="text-center p-6">
+                  <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <h3 className="text-white text-lg font-medium mb-2">No Preview Available</h3>
+                  <p className="text-gray-300 text-sm mb-4">Configure options and click "Generate Ad" to create your playable ad</p>
+                </div>
               </div>
             )}
           </div>
+
+          {/* 添加Back按钮到视频下方 */}
+          <div className="flex justify-between mt-4">
+            <button
+              onClick={prevStep}
+              className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
+            >
+              Back
+            </button>
+          </div>
+          {/* 预览区域结束 */}
         </div>
-        
-        {/* Right side: Export options */}
+
+        {/* 右侧：配置和生成按钮 */}
         <div>
-          <h3 className="text-lg font-medium mb-4">Export Options</h3>
+          <h3 className="text-lg font-medium text-gray-800 mb-4">Ad Configuration</h3>
           
-          {!isExporting && !exportComplete ? (
-            <>
-              <div>
-                <h4 className="font-medium mb-3">Select Export Platform</h4>
-                
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  {platforms.map((platform) => (
-                    <button
-                      key={platform.id}
-                      onClick={() => handlePlatformSelect(platform.id as PlatformOption)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        selectedPlatform === platform.id
-                          ? `border-blue-500 ${platform.color}`
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-xl mb-1">
-                          {platform.id === "google" && "🔵"}
-                          {platform.id === "facebook" && "📘"}
-                          {platform.id === "tiktok" && "🎵"}
-                          {platform.id === "applovin" && "📱"}
-                          {platform.id === "moloco" && "🎯"}
-                          {platform.id === "all" && "🌐"}
-                        </div>
-                        <div className="font-medium text-sm">{platform.name}</div>
-                      </div>
-                    </button>
-                  ))}
+          {errorMessage && (
+            <div className="mb-6">
+              <div className="bg-red-50 p-4 rounded-md border border-red-200">
+                <p className="text-red-700 flex items-center">
+                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {errorMessage}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Target Platforms <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handlePlatformChange("all")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("all")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                All Platforms
+                {isPlatformSelected("all") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => handlePlatformChange("google")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("google")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                Google
+                {isPlatformSelected("google") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => handlePlatformChange("facebook")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("facebook")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                Facebook
+                {isPlatformSelected("facebook") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => handlePlatformChange("applovin")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("applovin")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                AppLovin
+                {isPlatformSelected("applovin") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => handlePlatformChange("moloco")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("moloco")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                Moloco
+                {isPlatformSelected("moloco") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => handlePlatformChange("tiktok")}
+                className={`px-4 py-2 rounded-md border transition-colors ${
+                  isPlatformSelected("tiktok")
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                TikTok
+                {isPlatformSelected("tiktok") && (
+                  <svg className="h-4 w-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              Select one or more platforms where your ad will be displayed
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <label htmlFor="language" className="block text-sm font-medium text-gray-700 mb-1">
+              Language
+            </label>
+            <select
+              id="language"
+              value={language}
+              onChange={handleLanguageChange}
+              className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="en">English</option>
+              <option value="zh">Chinese</option>
+            </select>
+            <p className="text-sm text-gray-500 mt-1">
+              Select the language for your ad
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <label htmlFor="appName" className="block text-sm font-medium text-gray-700 mb-1">
+              App Name
+            </label>
+            <input
+              type="text"
+              id="appName"
+              value={appName}
+              onChange={handleAppNameChange}
+              className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="PlayableAds"
+            />
+                          <p className="text-sm text-gray-500 mt-1">
+                Enter your application name (e.g., CandyCrush, FarmVille, TikTok)
+              </p>
+          </div>
+
+          <div className="mb-6">
+            <label htmlFor="version" className="block text-sm font-medium text-gray-700 mb-1">
+              Version
+            </label>
+            <input
+              type="text"
+              id="version"
+              value={version}
+              onChange={handleVersionChange}
+              className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="v1"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Enter the version for your ad (e.g., v1, v2, beta)
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <h4 className="text-md font-medium text-gray-700 mb-2">Ad Content Summary</h4>
+            <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+              {/* 简化的内容摘要 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Media Files:</p>
+                  <p className="text-xs text-gray-600">
+                    Main Images: {formData.image ? 1 : 0} 
+                    {filesInfo?.image_files && filesInfo.image_files.length > 0 && ` (${filesInfo.human_total_image_size})`}
+                  </p>
                 </div>
                 
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      App Name
-                    </label>
-                    <input
-                      type="text"
-                      value={appName}
-                      onChange={(e) => setAppName(e.target.value)}
-                      placeholder="Enter app name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      App Version
-                    </label>
-                    <input
-                      type="text"
-                      value={appVersion}
-                      onChange={(e) => setAppVersion(e.target.value)}
-                      placeholder="1.0.0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Language
-                    </label>
-                    <select
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {languages.map((lang) => (
-                        <option key={lang.id} value={lang.id}>
-                          {lang.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                  <h4 className="font-medium mb-2">Export Summary</h4>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p>• Project Type: Interactive {formData.projectType}</p>
-                    <p>• Image: {formData.image?.name || "Not uploaded"}</p>
-                    <p>• Hotspots: {savedHotspots.length}</p>
-                    {formData.audio && <p>• Audio: {formData.audio.name}</p>}
-                    {formData.ctaButton && <p>• CTA Button: Added</p>}
-                  </div>
-                </div>
-                
-                <div className="flex flex-col space-y-3">
-                  <button
-                    onClick={handleGenerate}
-                    className="w-full py-3 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium flex items-center justify-center"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    Generate Playable Ad
-                  </button>
-                  
-                  <button
-                    disabled
-                    className="w-full py-3 px-4 bg-gray-200 text-gray-500 rounded-md font-medium flex items-center justify-center cursor-not-allowed"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                    </svg>
-                    Download (Generate First)
-                  </button>
-                </div>
-                
-                <div className="flex justify-between pt-6">
-                  <button
-                    onClick={prevStep}
-                    className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
-                  >
-                    Back
-                  </button>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Elements:</p>
+                  <p className="text-xs text-gray-600">
+                    Hotspots: {formData.hotspots?.length || 0}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    CTA Button: {formData.ctaButton ? 1 : 0}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Audio Files: {formData.audio ? 1 : 0}
+                  </p>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              {isExporting && !exportComplete ? (
-                <div className="text-center">
-                  <div className="mb-4">
-                    <svg className="animate-spin h-10 w-10 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                  <h4 className="text-lg font-medium mb-2">Generating Your Ad</h4>
-                  <p className="text-gray-600 mb-4">Please wait while we prepare your interactive ad...</p>
-                  
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                    <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${exportProgress}%` }}></div>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2">{exportProgress}% complete</p>
-                </div>
-              ) : exportComplete ? (
-                <div className="text-center">
-                  <div className="mb-4 text-green-500">
-                    <svg className="h-12 w-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                  </div>
-                  <h4 className="text-lg font-medium mb-2">Generation Complete!</h4>
-                  <p className="text-gray-600 mb-4">Your interactive ad has been successfully generated.</p>
-                  
-                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                    <h5 className="font-medium text-sm mb-2">Ad Details</h5>
-                    <div className="text-sm text-gray-600">
-                      <p>• Platform: {platforms.find(p => p.id === selectedPlatform)?.name}</p>
-                      <p>• App Name: {appName || "Not specified"}</p>
-                      <p>• Version: {appVersion}</p>
-                      <p>• Language: {languages.find(l => l.id === language)?.name}</p>
-                      <p>• Export Date: {new Date().toLocaleString()}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col space-y-3">
-                    <a
-                      href={exportUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors inline-flex items-center justify-center"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                      </svg>
-                      Preview Ad
-                    </a>
-                    
-                    <button
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors inline-flex items-center justify-center"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                      </svg>
-                      Download Ad Package
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        setExportComplete(false);
-                        setIsExporting(false);
-                      }}
-                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                      Back to Export Options
-                    </button>
-                  </div>
-                </div>
-              ) : null}
               
-              {exportError && (
-                <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-md text-center">
-                  {exportError}
+              {/* 总大小信息 */}
+              {filesInfo && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Estimated HTML Size:</span> {filesInfo.human_estimated_html_size}
+                  </p>
+                </div>
+              )}
+              
+              {loadingFilesInfo && (
+                <div className="text-center py-2">
+                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                  <span className="ml-2 text-sm text-gray-500">Loading file info...</span>
                 </div>
               )}
             </div>
-          )}
+          </div>
+
+          <div className="mb-6">
+            <button
+              onClick={generateAd}
+              disabled={generating || !formData.image || selectedPlatforms.length === 0 || language === ""}
+              className={`w-full py-3 rounded-md font-medium ${
+                generating || !formData.image || selectedPlatforms.length === 0 || language === ""
+                  ? "bg-gray-400 cursor-not-allowed" 
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              {generating ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Generating...
+                </span>
+              ) : (
+                <>Generate {selectedPlatforms.length === 1 && selectedPlatforms[0] === "all" ? "All Ads" : selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")}</>
+              )}
+            </button>
+            
+            {/* 生成成功提示和下载按钮 */}
+            {result && (
+              <div className="mt-4 space-y-4">
+                <div className="bg-green-50 p-4 rounded-md border border-green-200">
+                  <p className="text-green-700 flex items-center">
+                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Ad generated successfully for {selectedPlatforms.length === 1 && selectedPlatforms[0] === "all" ? "All Platforms" : selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")}! You can preview it in the left panel.
+                  </p>
+                </div>
+                
+                <button
+                  onClick={downloadAd}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                  </svg>
+                  Download {selectedPlatforms.length === 1 && selectedPlatforms[0] === "all" ? "All Platforms" : selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")} Ad ({appName})
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default ExportAd;
+export default ExportAd; 

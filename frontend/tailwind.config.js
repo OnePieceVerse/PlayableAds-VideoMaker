@@ -20,14 +20,20 @@ module.exports = {
         },
         pulseScale: {
           '0%': { transform: 'scale(1)' },
-          '50%': { transform: 'scale(1.25)' },
+          '50%': { transform: 'scale(1.35)' },
           '100%': { transform: 'scale(1)' }
+        },
+        hotspotPulse: {
+          '0%': { boxShadow: '0 0 0 0 rgba(37, 99, 235, 0.8)', opacity: 0.9 },
+          '50%': { boxShadow: '0 0 0 15px rgba(37, 99, 235, 0)', opacity: 1 },
+          '100%': { boxShadow: '0 0 0 0 rgba(37, 99, 235, 0)', opacity: 0.9 }
         }
       },
       animation: {
         fadeIn: 'fadeIn 0.2s ease-out',
         blob: 'blob 7s infinite',
-        'pulse-scale': 'pulseScale 1.2s ease-in-out infinite'
+        'pulse-scale': 'pulseScale 1s ease-in-out infinite',
+        'hotspot-pulse': 'hotspotPulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite'
       }
     },
   },

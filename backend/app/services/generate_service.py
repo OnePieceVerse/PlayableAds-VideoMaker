@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 CURRENT_DIR = Path(__file__).parent.parent.parent
 
 # 模板目录
-TEMPLATE_DIR = CURRENT_DIR / "app" / "templates" / "v1"
+TEMPLATE_DIR = CURRENT_DIR / "app" / "templates" / "video"
 
 # 项目目录
 PROJECTS_DIR = CURRENT_DIR / "projects"

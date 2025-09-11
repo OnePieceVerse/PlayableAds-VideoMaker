@@ -115,4 +115,25 @@ class GenerateResponse(BaseModel):
     file_url: Optional[str] = None
     preview_url: Optional[str] = None
     error: Optional[str] = None 
-    project_id: Optional[str] = None 
+    project_id: Optional[str] = None
+
+class Hotspot(BaseModel):
+    left: float  # Position as percentage (0-100)
+    top: float   # Position as percentage (0-100)
+    type: str    # "jump" or "popup"
+    url: Optional[str] = None  # For jump type
+    modalImgs: Optional[List[str]] = None  # Image IDs for popup type
+    modalText: Optional[str] = ""  # Text for popup modal
+    imgIndex: int  # Index of the image this hotspot belongs to
+
+class ImageGenerateRequest(BaseModel):
+    project_id: str
+    images: List[str]  # List of image IDs
+    hotspots: List[Hotspot] = []
+    cta_buttons: List[CTAButton] = []
+    audio_files: List[str] = []  # List of audio file IDs
+    platforms: List[Platform] = [Platform.GOOGLE]
+    language: Language = Language.ENGLISH
+    version: str = "v1"
+    app_name: str = "PlayableAds"
+    orientation: VideoOrientation = VideoOrientation.PORTRAIT  # Reusing VideoOrientation enum 

@@ -635,26 +635,32 @@ const DefaultHotspotSvg = () => (
                       style={{
                         left: `${hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x)}%`,
                         top: `${hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || hotspot.y)}%`,
-                        width: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
-                        height: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
                         transform: 'translate(-50%, -50%)',
                       }}
                       onMouseDown={(e) => handleHotspotImageMouseDown(e, hotspot.id)}
                     >
-                      {hotspot.useDefaultSvg ? (
-                        <div 
-                          className="w-full h-full overflow-hidden animate-pulse-scale"
-                        >
-                          <DefaultHotspotSvg />
-                        </div>
-                      ) : (
-                        <img
-                          src={hotspot.hotspotImage!.url}
-                          alt={hotspot.hotspotImage!.name}
-                          className="w-full h-full object-cover rounded animate-pulse-scale"
-                          draggable={false}
-                        />
-                      )}
+                      <div 
+                        style={{
+                          width: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
+                          height: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
+                        }}
+                        className="animate-hotspot-pulse rounded-full"
+                      >
+                        {hotspot.useDefaultSvg ? (
+                          <div 
+                            className="w-full h-full overflow-hidden animate-pulse-scale"
+                          >
+                            <DefaultHotspotSvg />
+                          </div>
+                        ) : (
+                          <img
+                            src={hotspot.hotspotImage!.url}
+                            alt={hotspot.hotspotImage!.name}
+                            className="w-full h-full object-cover rounded animate-pulse-scale"
+                            draggable={false}
+                          />
+                        )}
+                      </div>
                     </div>
                   ))}
               </>
@@ -1030,7 +1036,7 @@ const DefaultHotspotSvg = () => (
                             </div>
                           ) : hotspot.hotspotImage && (
                             <div className="w-10 h-10 bg-gray-200 rounded overflow-hidden">
-                              <img src={hotspot.hotspotImage.url} alt={hotspot.hotspotImage.name} className="w-full h-full object-cover" />
+                              <img src={hotspot.hotspotImage.url} alt={hotspot.hotspotImage.name} className="w-full h-full object-contain" />
                             </div>
                           )}
                           <div>
@@ -1049,7 +1055,7 @@ const DefaultHotspotSvg = () => (
                               <div className="mt-2 flex space-x-2 overflow-hidden pb-1 max-w-full">
                                 {hotspot.popupContent.images.slice(0, 5).map((image) => (
                                   <div key={image.id} className="w-10 h-10 flex-shrink-0 bg-gray-200 rounded overflow-hidden">
-                                    <img src={image.url} alt="" className="w-full h-full object-cover" />
+                                    <img src={image.url} alt="" className="w-full h-full object-contain" />
                                   </div>
                                 ))}
                                 {hotspot.popupContent.images.length > 5 && (
