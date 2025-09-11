@@ -5,15 +5,16 @@ import { useLanguage } from "@/app/i18n/LanguageContext";
 import NavbarClient from "@/components/NavbarClient";
 import StepIndicator from "@/components/StepIndicator";
 import ProjectTypeSelection from "@/components/steps/ProjectTypeSelection";
-import VideoUpload from "@/components/steps/VideoUpload";
-import ImageUpload from "@/components/steps/ImageUpload";
-import ImageHotspots from "@/components/steps/ImageHotspots";
-import AudioUpload from "@/components/steps/AudioUpload";
-import PauseFrames from "@/components/steps/PauseFrames";
-import CTAButtons from "@/components/steps/CTAButtons";
-import CTAButtonStep from "@/components/steps/CTAButtonStep";
-import BannerUpload from "@/components/steps/BannerUpload";
-import ExportAd from "@/components/steps/ExportAd";
+import VideoUpload from "@/components/steps/video/VideoUpload";
+import ImageUpload from "@/components/steps/image/ImageUpload";
+import ImageHotspots from "@/components/steps/image/ImageHotspots";
+import ImageAudioUpload from "@/components/steps/image/ImageAudioUpload";
+import VideoPauseFrames from "@/components/steps/video/VideoPauseFrames";
+import VideoCTAButtons from "@/components/steps/video/VideoCTAButtons";
+import ImageCTAButton from "@/components/steps/image/ImageCTAButton";
+import VideoBannerUpload from "@/components/steps/video/VideoBannerUpload";
+import ImageExportAd from "@/components/steps/image/ImageExportAd";
+import VideoExportAd from "@/components/steps/video/VideoExportAd";
 
 const CreatePage: React.FC = () => {
   const { t } = useLanguage();
@@ -92,7 +93,7 @@ const CreatePage: React.FC = () => {
           );
         case 3:
           return (
-            <PauseFrames
+            <VideoPauseFrames
               formData={formData}
               updateFormData={updateFormData}
               nextStep={nextStep}
@@ -101,7 +102,7 @@ const CreatePage: React.FC = () => {
           );
         case 4:
           return (
-            <CTAButtons
+            <VideoCTAButtons
               formData={formData}
               updateFormData={updateFormData}
               nextStep={nextStep}
@@ -110,7 +111,7 @@ const CreatePage: React.FC = () => {
           );
         case 5:
           return (
-            <BannerUpload
+            <VideoBannerUpload
               formData={formData}
               updateFormData={updateFormData}
               nextStep={nextStep}
@@ -119,7 +120,7 @@ const CreatePage: React.FC = () => {
           );
         case 6:
           return (
-            <ExportAd
+            <VideoExportAd
               formData={formData}
               updateFormData={updateFormData}
               nextStep={nextStep}
@@ -152,7 +153,7 @@ const CreatePage: React.FC = () => {
           );
         case 4:
           return (
-            <CTAButtonStep
+            <ImageCTAButton
               formData={formData}
               updateFormData={updateFormData}
               nextStep={nextStep}
@@ -161,7 +162,7 @@ const CreatePage: React.FC = () => {
           );
         case 5:
           return (
-            <AudioUpload
+            <ImageAudioUpload
               formData={formData}
               updateFormData={updateFormData}
               nextStep={nextStep}
@@ -171,7 +172,7 @@ const CreatePage: React.FC = () => {
           );
         case 6:
           return (
-            <ExportAd
+            <ImageExportAd
               formData={formData}
               updateFormData={updateFormData}
               nextStep={nextStep}

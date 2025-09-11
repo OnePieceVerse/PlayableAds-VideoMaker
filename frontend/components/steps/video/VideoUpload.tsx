@@ -73,7 +73,13 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
         url: getFullUrl(data.url),
         width: data.metadata?.width || 0,
         height: data.metadata?.height || 0,
+        id: data.file_id, // Add the file_id from the response
       });
+
+      // Save project_id to formData
+      if (data.project_id) {
+        updateFormData("project_id", data.project_id);
+      }
 
       setUploadProgress(100);
       
