@@ -1,0 +1,230 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  
+  #app {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    min-height: 100vh;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-items: stretch;
+  }
+
+  .img-wrapper {
+    position: relative;
+    width: 100vw;
+    /* height: 50vh; */
+    overflow: hidden;
+  }
+
+  .app-img {
+    width: 100vw;
+    max-width: 100vw;
+    height: auto;
+    min-height: 0;
+    object-fit: cover;
+    background: #000;
+    display: block;
+    margin: 0;
+    padding: 0;
+  }
+  
+  @keyframes bounce {
+    0%   { transform: scale(1);}
+    20%  { transform: scale(1.2);}
+    40%  { transform: scale(0.95);}
+    60%  { transform: scale(1.1);}
+    80%  { transform: scale(0.98);}
+    100% { transform: scale(1);}
+  }
+  
+  .hotspot-svg {
+    transition: 
+      transform 0.15s cubic-bezier(.4,2,.6,1), 
+      filter 0.15s;
+    cursor: pointer;
+    filter: drop-shadow(0 2px 6px rgba(25,118,210,0.15));
+  }
+  .hotspot-svg.bounce {
+    animation: bounce 0.8s cubic-bezier(.4,2,.6,1);
+  }
+  .hotspot-svg:hover,
+  .hotspot-svg:active {
+    transform: scale(1.18) rotate(-8deg);
+    filter: drop-shadow(0 4px 12px #1976d2);
+  }
+
+  /* 弹窗样式 */
+  #modal {
+    position: fixed;
+    left: 0; top: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  
+  #modal.hidden {
+    display: none;
+  }
+  
+  .modal-content {
+    background: #112138;
+    border-radius: 10px;
+    padding: 1em;
+    max-width: 90vw;
+    width: 320px;
+    position: relative;
+    text-align: center;
+  }
+  
+  #close-modal {
+    position: absolute;
+    right: 0.5em;
+    top: 0.5em;
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    color: #888;
+    cursor: pointer;
+  }
+  
+  #modal-text {
+    width: 100%;
+    color: white;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-bottom: 0.5em;
+    font-size: 1.2em;
+    font-weight: bold;
+  }
+
+  #modal-imgs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    align-items: center;
+    margin-bottom: 0.5em;
+  }
+  
+  .modal-img {
+    width: 100%;         /* 强制所有图片宽度一致 */
+    max-width: 100%;     /* 防止超出容器 */
+    height: auto;        /* 高度自适应，保持比例 */
+    object-fit: contain; /* 保证图片完整显示 */
+    border-radius: 6px;
+    max-height: 200px;   /* 可选，防止图片过高撑出弹窗 */
+    display: block;
+    box-sizing: border-box;
+  }
+
+/* 响应式热点 SVG 容器 */
+.hotspot-svg-container {
+  width: 15vw;
+  height: 15vw;
+  min-width: 60px;
+  min-height: 60px;
+  max-width: 120px;
+  max-height: 120px;
+  pointer-events: auto;
+  position: absolute;
+  /* left/top 由JS动态设置 */
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 让SVG自适应容器 */
+.hotspot-svg {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 移动端优化 */
+@media (max-width: 600px) {
+  .app-img {
+    width: 100vw;
+    max-width: 100vw;
+    height: auto;
+    min-height: 0;
+    object-fit: cover;
+  }
+  #app {
+    min-height: 100vh;
+    height: auto;
+    overflow-y: auto;
+  }
+  .hotspot-svg-container {
+    width: 22vw;
+    height: 22vw;
+    min-width: 40px;
+    min-height: 40px;
+    max-width: 70px;
+    max-height: 70px;
+  }
+  .modal-content {
+    width: 95vw;
+    max-width: 95vw;
+    padding: 0.5em;
+  }
+  .modal-img {
+    max-height: 120px;
+  }
+  #modal-text {
+    font-size: 1em;
+  }
+}
+
+.flex-filler {
+  flex-grow: 1;
+  min-height: 0;
+}
+
+.download-btn {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 200;
+  min-width: 160px;
+  max-width: 90vw;
+  width: 320px;
+  height: 48px;
+  background: linear-gradient(90deg, #ff9800 0%, #ff5722 100%);
+  color: #fff;
+  font-size: 1.3em;
+  font-weight: bold;
+  border: none;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(255,152,0,0.15);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.05em;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.download-btn:active {
+  background: linear-gradient(90deg, #ffb74d 0%, #ff8a65 100%);
+  box-shadow: 0 2px 8px rgba(255,152,0,0.10);
+}
+@media (max-width: 600px) {
+  .download-btn {
+    min-width: 120px;
+    width: 90vw;
+    height: 44px;
+    font-size: 1em;
+    bottom: 12px;
+  }
+}
