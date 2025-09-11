@@ -11,6 +11,7 @@ import ImageHotspots from "@/components/steps/ImageHotspots";
 import AudioUpload from "@/components/steps/AudioUpload";
 import PauseFrames from "@/components/steps/PauseFrames";
 import CTAButtons from "@/components/steps/CTAButtons";
+import CTAButtonStep from "@/components/steps/CTAButtonStep";
 import BannerUpload from "@/components/steps/BannerUpload";
 import ExportAd from "@/components/steps/ExportAd";
 
@@ -28,6 +29,7 @@ const CreatePage: React.FC = () => {
     hotspots: [],
     platform: "all",
     projectType: null,
+    ctaButton: null,
   });
 
   // Define steps based on project type - 移除视频流程中的Add Audio步骤
@@ -44,7 +46,9 @@ const CreatePage: React.FC = () => {
     { id: 1, title: t('chooseProjectType'), completed: false },
     { id: 2, title: t('uploadImage'), completed: false },
     { id: 3, title: t('addHotspots'), completed: false },
-    { id: 4, title: t('export'), completed: false },
+    { id: 4, title: t('addCTAButton'), completed: false },
+    { id: 5, title: t('addAudioOptional'), completed: false },
+    { id: 6, title: t('export'), completed: false },
   ];
 
   const steps = projectType === 'image' ? imageSteps : videoSteps;
@@ -147,6 +151,25 @@ const CreatePage: React.FC = () => {
             />
           );
         case 4:
+          return (
+            <CTAButtonStep
+              formData={formData}
+              updateFormData={updateFormData}
+              nextStep={nextStep}
+              prevStep={prevStep}
+            />
+          );
+        case 5:
+          return (
+            <AudioUpload
+              formData={formData}
+              updateFormData={updateFormData}
+              nextStep={nextStep}
+              prevStep={prevStep}
+              isOptional={true}
+            />
+          );
+        case 6:
           return (
             <ExportAd
               formData={formData}

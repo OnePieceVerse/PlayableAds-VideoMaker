@@ -39,6 +39,8 @@ export type TranslationKey =
   | 'addCTAButtons'
   | 'addBannersOptional'
   | 'addAudio'
+  | 'addAudioOptional'
+  | 'addCTAButton'
   | 'export'
   | 'workflowTitle'
   | 'workflowHeading'
@@ -100,6 +102,8 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     addCTAButtons: '添加CTA按钮',
     addBannersOptional: '添加横幅（可选）',
     addAudio: '添加音频',
+    addAudioOptional: '添加音频（可选）',
+    addCTAButton: '添加CTA按钮',
     export: '导出',
     workflowTitle: '工作流程',
     workflowHeading: '简单三步，创建专业广告',
@@ -160,6 +164,8 @@ export const translations: Record<Locale, Record<TranslationKey, string>> = {
     addCTAButtons: 'Add CTA Buttons',
     addBannersOptional: 'Add Banners (Optional)',
     addAudio: 'Add Audio',
+    addAudioOptional: 'Add Audio (Optional)',
+    addCTAButton: 'Add CTA Button',
     export: 'Export',
     workflowTitle: 'Workflow',
     workflowHeading: 'Create Professional Ads in 3 Simple Steps',

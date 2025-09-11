@@ -7,3 +7,5 @@ python-dotenv
 jinja2
 pillow
 opencv-python
+# Optional: ffmpeg-python for audio duration detection
+# If ffmpeg is not installed, fallback methods will be used

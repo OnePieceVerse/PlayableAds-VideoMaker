@@ -25,17 +25,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Type"]  # 暴露这些头以便前端可以正确处理音频文件
 )
 
 # 挂载projects目录
 app.mount("/projects", StaticFiles(directory="projects"), name="projects")
 
 # 导入路由
-from backend.app.api import upload, generate
+from backend.app.api import upload, generate, system_audio
 
 # 注册路由
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 app.include_router(generate.router, prefix="/api", tags=["generate"])
+app.include_router(system_audio.router, prefix="/api", tags=["system-audio"])
 
 @app.get("/")
 async def root():
@@ -43,4 +45,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=18080, reload=True) 
+    uvicorn.run("main:app", host="0.0.0.0", port=18080, reload=True)

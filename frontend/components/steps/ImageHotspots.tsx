@@ -35,6 +35,7 @@ interface Hotspot {
     y: number;
     scale: number;
   };
+  useDefaultSvg?: boolean;
   isSaved?: boolean;
 }
 
@@ -44,16 +45,6 @@ interface ImageHotspotsProps {
   nextStep: () => void;
   prevStep: () => void;
 }
-
-// 系统音频选项
-const SYSTEM_AUDIO_OPTIONS = [
-  { id: 'upbeat-1', name: 'Upbeat Energy', category: 'Energetic', duration: '0:30' },
-  { id: 'ambient-1', name: 'Ambient Flow', category: 'Ambient', duration: '0:45' },
-  { id: 'corporate-1', name: 'Corporate Professional', category: 'Corporate', duration: '0:30' },
-  { id: 'tech-1', name: 'Tech Innovation', category: 'Technology', duration: '0:40' },
-  { id: 'nature-1', name: 'Nature Sounds', category: 'Nature', duration: '1:00' },
-  { id: 'classical-1', name: 'Classical Elegance', category: 'Classical', duration: '0:50' }
-];
 
 const ImageHotspots: React.FC<ImageHotspotsProps> = ({
   formData,
@@ -75,17 +66,37 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
   const [popupTitle, setPopupTitle] = useState("");
   const [hotspotTitle, setHotspotTitle] = useState("");
   const [hotspotCounter, setHotspotCounter] = useState(1);
-  const [selectedAudio, setSelectedAudio] = useState<any>(formData.audio || null);
-  const [audioType, setAudioType] = useState<'upload' | 'system'>('system');
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [showPopup, setShowPopup] = useState<Hotspot | null>(null);
+  const [isLandscape, setIsLandscape] = useState(false); // Add landscape mode state
+
+  // Removed audio-related code
 
   // Initialize with existing hotspots if available
   useEffect(() => {
-    if (formData.hotspots && formData.hotspots.length > 0) {
+    if (!isInitialized && formData.hotspots && formData.hotspots.length > 0) {
       setHotspots(formData.hotspots);
-      const savedCount = formData.hotspots.filter((h: Hotspot) => h.isSaved).length;
-      setHotspotCounter(savedCount + 1);
+      
+      // Find the maximum hotspot number to ensure incrementing numbers
+      let maxNumber = 0;
+      formData.hotspots.forEach((h: Hotspot) => {
+        if (h.title && h.title.startsWith('Hotspot ')) {
+          const match = h.title.match(/Hotspot (\d+)/);
+          if (match && match[1]) {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num) && num > maxNumber) {
+              maxNumber = num;
+            }
+          }
+        }
+      });
+      
+      setHotspotCounter(maxNumber + 1);
+      setIsInitialized(true);
     }
-  }, [formData.hotspots]);
+  }, [formData.hotspots, isInitialized]);
 
   // Update image size when it loads
   useEffect(() => {
@@ -121,6 +132,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
         title: "",
         images: []
       },
+      useDefaultSvg: true, // Default to using the SVG
       isSaved: false
     };
 
@@ -137,16 +149,24 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
   };
 
   // Update hotspot
-  const updateHotspot = (hotspotId: string, updates: Partial<Hotspot>) => {
+  const updateHotspot = useCallback((hotspotId: string, updates: Partial<Hotspot>) => {
     setHotspots(prev => prev.map(h => 
       h.id === hotspotId ? { ...h, ...updates } : h
     ));
-  };
+  }, []);
 
-  // URL validation function
+  // 改进的URL验证函数
   const isValidUrl = (url: string) => {
     try {
-      new URL(url);
+      const urlObj = new URL(url);
+      // 检查协议是否为 http 或 https
+      if (!["http:", "https:"].includes(urlObj.protocol)) {
+        return false;
+      }
+      // 检查是否有有效的域名
+      if (!urlObj.hostname || urlObj.hostname.length === 0) {
+        return false;
+      }
       return true;
     } catch {
       return false;
@@ -159,21 +179,37 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
 
     const currentHotspot = getSelectedHotspot();
     
+    // 清除错误
+    setUrlError(null);
+    setTitleError(null);
+
+    // 验证标题是否唯一
+    const title = hotspotTitle || `Hotspot ${hotspotCounter - 1}`;
+    const isDuplicateTitle = hotspots.some(h => 
+      h.id !== selectedHotspot && 
+      h.title?.toLowerCase() === title.toLowerCase()
+    );
+
+    if (isDuplicateTitle) {
+      setTitleError("Hotspot title must be unique");
+      return;
+    }
+    
     // 验证URL是否填写和格式是否正确
     if (currentHotspot?.action === "url") {
       if (!currentHotspot.url.trim()) {
-        setError("URL is required when action type is URL");
+        setUrlError("URL is required when action type is URL");
         return;
       }
       if (!isValidUrl(currentHotspot.url)) {
-        setError("Please enter a valid URL (e.g., https://example.com)");
+        setUrlError("Please enter a valid URL (e.g., https://example.com)");
         return;
       }
     }
 
     const updates: Partial<Hotspot> = {
       isSaved: true,
-      title: hotspotTitle || `Hotspot ${hotspotCounter - 1}`
+      title: title
     };
 
     updateHotspot(selectedHotspot, updates);
@@ -310,58 +346,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
     disabled: uploading
   });
 
-  // Audio upload
-  const onAudioDrop = async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
-
-    const file = acceptedFiles[0];
-    setUploading(true);
-    setError(null);
-
-    try {
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", file);
-      uploadFormData.append("type", "audio");
-      uploadFormData.append("step", "audio_upload");
-
-      const response = await fetch(API_PATHS.upload, {
-        method: "POST",
-        body: uploadFormData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      const audioData = {
-        type: 'uploaded',
-        file: file,
-        url: getFullUrl(data.url),
-        name: file.name,
-        duration: data.metadata?.duration || 0,
-      };
-
-      setSelectedAudio(audioData);
-      updateFormData("audio", audioData);
-
-    } catch (error) {
-      console.error("Error uploading audio:", error);
-      setError(error instanceof Error ? error.message : "Upload failed. Please try again.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const { getRootProps: getAudioRootProps, getInputProps: getAudioInputProps, isDragActive: isAudioDragActive } = useDropzone({
-    onDrop: onAudioDrop,
-    accept: {
-      "audio/*": [".mp3", ".wav", ".m4a", ".ogg"]
-    },
-    multiple: false,
-    disabled: uploading
-  });
+  // Audio upload functions removed
 
   // Update popup title
   const updatePopupTitle = (title: string) => {
@@ -389,19 +374,19 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
     }
   };
 
-  // Select system audio
-  const selectSystemAudio = (audio: any) => {
-    const audioData = {
-      type: 'system',
-      id: audio.id,
-      name: audio.name,
-      category: audio.category,
-      duration: audio.duration,
-      url: `/api/system-audio/${audio.id}.mp3`,
-    };
+  // Audio-related functions removed
 
-    setSelectedAudio(audioData);
-    updateFormData("audio", audioData);
+  // Handle hotspot click for all action types
+  const handleHotspotClick = (hotspot: Hotspot) => {
+    if (hotspot.action === 'popup' && hotspot.popupContent) {
+      // 显示弹窗
+      setShowPopup(hotspot);
+    } else if (hotspot.action === 'url' && hotspot.url) {
+      // 如果是URL操作，在新窗口打开URL
+      if (hotspot.isSaved) {
+        window.open(hotspot.url, '_blank');
+      }
+    }
   };
 
   // Handle hotspot image dragging
@@ -410,20 +395,59 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
     e.stopPropagation();
 
     const hotspot = hotspots.find(h => h.id === hotspotId);
-    if (!hotspot?.hotspotImage) return;
+    if (!hotspot) return;
+    
+    // 仅在编辑模式下允许拖拽，否则直接处理点击事件
+    if (isEditing && selectedHotspot === hotspotId) {
+      // 编辑模式 - 设置拖拽
+    } else if (hotspot.isSaved) {
+      // 如果是已保存的热点，直接处理点击事件
+      handleHotspotClick(hotspot);
+      return;
+    }
+    
+    // Store initial position for drag detection
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let hasMoved = false;
+    
+    // Set up for potential drag operation
+    const handleClickDetectionMove = (moveEvent: MouseEvent) => {
+      // Check if the mouse has moved more than a few pixels (indicating a drag vs a click)
+      if (Math.abs(moveEvent.clientX - startX) > 5 || Math.abs(moveEvent.clientY - startY) > 5) {
+        hasMoved = true;
+      }
+    };
+    
+    // Handle mouse up to determine if this was a click or drag
+    const handleClickDetectionUp = (upEvent: MouseEvent) => {
+      document.removeEventListener('mousemove', handleClickDetectionMove);
+      document.removeEventListener('mouseup', handleClickDetectionUp);
+      
+      // If the mouse didn't move much, treat it as a click
+      if (!hasMoved && !isEditing && hotspot.isSaved) {
+        handleHotspotClick(hotspot);
+      }
+    };
+    
+    document.addEventListener('mousemove', handleClickDetectionMove);
+    document.addEventListener('mouseup', handleClickDetectionUp);
 
+    // Setup for dragging functionality
     const rect = imageContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     const initialClientX = e.clientX;
     const initialClientY = e.clientY;
-    const initialX = hotspot.hotspotImage.x;
-    const initialY = hotspot.hotspotImage.y;
+    
+    // Get initial position based on whether we're using default SVG or custom image
+    const initialX = hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || 0);
+    const initialY = hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || 0);
 
     setIsDragging(true);
     setSelectedHotspot(hotspotId);
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
+    const handleDragMove = (moveEvent: MouseEvent) => {
       if (!rect) return;
 
       const deltaX = moveEvent.clientX - initialClientX;
@@ -435,35 +459,95 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       const newX = Math.max(0, Math.min(100, initialX + deltaPercentX));
       const newY = Math.max(0, Math.min(100, initialY + deltaPercentY));
 
-      updateHotspot(hotspotId, {
-        hotspotImage: {
-          ...hotspot.hotspotImage!,
-          x: newX,
-          y: newY
-        }
-      });
+      setHotspots(prev => prev.map(h => 
+        h.id === hotspotId ? 
+          h.useDefaultSvg ? 
+            {
+              ...h,
+              x: newX,
+              y: newY
+            } 
+          : {
+              ...h,
+              hotspotImage: h.hotspotImage ? {
+                ...h.hotspotImage,
+                x: newX,
+                y: newY
+              } : undefined
+            }
+        : h
+      ));
     };
 
-    const handleMouseUp = () => {
+    const handleDragEnd = () => {
       setIsDragging(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleDragMove);
+      document.removeEventListener('mouseup', handleDragEnd);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [hotspots]);
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+  }, [hotspots, isEditing, selectedHotspot, handleHotspotClick]);
 
   // Update form data when hotspots change
   useEffect(() => {
-    const currentHotspots = formData.hotspots || [];
-    if (JSON.stringify(currentHotspots) !== JSON.stringify(hotspots)) {
-      updateFormData("hotspots", hotspots);
+    if (!isDragging) {
+      const currentHotspots = formData.hotspots || [];
+      if (JSON.stringify(currentHotspots) !== JSON.stringify(hotspots)) {
+        updateFormData("hotspots", hotspots);
+      }
     }
-  }, [hotspots, formData.hotspots, updateFormData]);
+  }, [hotspots, formData.hotspots, updateFormData, isDragging]);
+
+  // Add toggle landscape mode function
+  const toggleLandscapeMode = () => {
+    setIsLandscape(!isLandscape);
+  };
+
+  // First, let's add a default SVG hotspot component
+const DefaultHotspotSvg = () => (
+  <svg 
+    className="w-full h-full text-white animate-pulse-scale" 
+    viewBox="0 0 1448 1024" 
+    xmlns="http://www.w3.org/2000/svg"
+    style={{ filter: 'drop-shadow(0px 0px 3px rgba(0, 0, 0, 0.5))' }}
+  >
+    <path 
+      d="M954.678313 549.757097l-211.405341-125.742315c-7.740635-4.644381-12.729044-1.032085-11.008903 7.740635l44.895682 243.227953c1.720141 8.944734 7.224593 10.148833 12.385016 2.752225 0 0 28.726356-41.111372 52.29229-66.225432l45.239711 67.257517c4.300353 6.364522 13.073072 8.084663 19.26558 3.784311l15.137242-10.492861c6.364522-4.300353 7.912649-13.245087 3.612296-19.609609l-45.239711-67.257517c30.274483-12.55703 72.933983-23.049891 72.933983-23.049891 8.77272-2.236183 9.63279-7.740635 1.892155-12.385016z m-246.668234 79.642533c-0.860071-0.344028-1.720141-0.516042-2.580212-0.516042-72.933983-17.029397-125.742315-84.1149-124.882244-161.349236 1.032085-90.307408 74.310096-162.897363 163.241391-162.037292 84.286914 1.032085 152.920544 67.601545 159.285066 151.200403v0.172015c0 0.860071 0 1.720141 0.172014 2.408197 0.860071 5.332437 4.644381 9.63279 9.460776 11.180917 0.860071 0.172014 1.720141 0.344028 2.408198 0.516043h2.580212c7.224593-0.516042 12.901058-6.536536 13.073072-13.933143v-0.172014c0-0.688056 0-1.204099-0.172014-1.892156-1.376113-20.297665-6.020494-39.907274-13.589115-58.656811-9.288762-23.049891-22.705863-43.691584-39.907273-61.409038-17.201411-17.889467-37.327062-31.82261-59.688897-41.799429-23.221905-10.320847-47.991937-15.653284-73.450025-15.997312-25.630102-0.344028-50.400134 4.472367-73.794053 14.277171-22.705863 9.460776-43.003528 23.049891-60.548967 40.423316-17.545439 17.373425-31.478582 37.843104-41.283387 60.548967-10.148833 23.565933-15.48127 48.679993-15.653284 74.654124-0.516042 46.959852 15.997312 92.543591 46.271796 127.978498 26.490173 30.790526 61.581052 52.29229 100.45624 61.409038 0.860071 0.344028 1.720141 0.516042 2.580212 0.516042 0.516042 0 1.032085 0.172014 1.548127 0.172014 7.740635 0.172014 14.105157-6.192508 14.105157-13.933143 0-6.536536-3.956325-11.868974-9.63279-13.761129z" 
+      fill="currentColor"
+    />
+  </svg>
+);
+
+  // Now let's modify the interface to include useDefaultSvg flag
+  interface Hotspot {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    label: string;
+    title: string;
+    action: string;
+    url: string;
+    popupContent?: PopupContent;
+    hotspotImage?: {
+      id: string;
+      url: string;
+      name: string;
+      x: number;
+      y: number;
+      scale: number;
+    };
+    useDefaultSvg?: boolean;
+    isSaved?: boolean;
+    scale?: number; // For default SVG scale
+  }
 
   return (
     <div className="space-y-6">
+      {/* Removed global popup - it will be displayed in the image preview */}
+      
       <div className="text-center mb-6">
         <h2 className="text-2xl font-semibold text-gray-800">{t('addHotspots')}</h2>
         <p className="text-gray-600">Add interactive hotspots to your image</p>
@@ -480,16 +564,23 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
         <div className="md:col-span-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-medium text-gray-800">Image Preview</h3>
-            <button className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors">
+            <button 
+              onClick={toggleLandscapeMode}
+              className="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+            >
               <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
               </svg>
-              Landscape Mode
+              {isLandscape ? "Portrait Mode" : "Landscape Mode"}
             </button>
           </div>
           <div 
             ref={imageContainerRef}
-            className="bg-black rounded-lg overflow-hidden relative transition-all duration-300 aspect-[9/16] max-w-[400px] mx-auto"
+            className={`bg-black rounded-lg overflow-hidden relative transition-all duration-300 ${
+              isLandscape 
+                ? "aspect-video" 
+                : "aspect-[9/16] max-w-[400px] mx-auto"
+            }`}
           >
             {formData.image?.url ? (
               <>
@@ -499,27 +590,71 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                   alt="Uploaded image"
                   className="w-full h-full object-contain"
                 />
-                {/* Render hotspot images */}
+                {/* Popup overlay within the image container */}
+                {showPopup && (
+                  <div className="absolute inset-0 flex items-center justify-center z-20">
+                    <div className="bg-white rounded-lg shadow-xl p-3 m-2 max-w-[80%] max-h-[80%] overflow-y-auto border border-gray-200 relative">
+                      <button 
+                        onClick={() => setShowPopup(null)}
+                        className="absolute right-2 top-2 bg-white rounded-full p-1 shadow-sm text-gray-500 hover:text-gray-700"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                      </button>
+                      
+                      {showPopup.popupContent?.title && (
+                        <h3 className="text-base font-semibold mb-3 pr-6 text-center">{showPopup.popupContent.title}</h3>
+                      )}
+                      
+                                              <div className="space-y-2">
+                          {showPopup.popupContent?.images && showPopup.popupContent.images.length > 0 ? (
+                            showPopup.popupContent.images.map((image) => (
+                              <div key={image.id} className="bg-gray-50 rounded-lg overflow-hidden flex justify-center">
+                                <img 
+                                  src={image.url} 
+                                  alt="" 
+                                  className="max-w-full max-h-40 object-contain"
+                                  style={{ maxWidth: '100%' }}
+                                />
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-gray-500 italic text-sm text-center">No images in this popup</p>
+                          )}
+                        </div>
+                    </div>
+                  </div>
+                )}
                 {hotspots
-                  .filter(hotspot => hotspot.hotspotImage && hotspot.isSaved)
+                  .filter(hotspot => hotspot.hotspotImage || hotspot.useDefaultSvg)
                   .map((hotspot) => (
                     <div
                       key={hotspot.id}
                       className={`absolute cursor-move select-none ${isDragging && selectedHotspot === hotspot.id ? 'z-10' : ''}`}
                       style={{
-                        left: `${hotspot.hotspotImage!.x}%`,
-                        top: `${hotspot.hotspotImage!.y}%`,
-                        width: `${hotspot.hotspotImage!.scale}px`,
-                        height: `${hotspot.hotspotImage!.scale}px`,
+                        left: `${hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x)}%`,
+                        top: `${hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || hotspot.y)}%`,
+                        width: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
+                        height: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
+                        transform: 'translate(-50%, -50%)',
                       }}
                       onMouseDown={(e) => handleHotspotImageMouseDown(e, hotspot.id)}
                     >
-                      <img
-                        src={hotspot.hotspotImage!.url}
-                        alt={hotspot.hotspotImage!.name}
-                        className="w-full h-full object-cover rounded"
-                        draggable={false}
-                      />
+                      {hotspot.useDefaultSvg ? (
+                        <div 
+                          className="w-full h-full overflow-hidden animate-pulse-scale"
+                        >
+                          <DefaultHotspotSvg />
+                        </div>
+                      ) : (
+                        <img
+                          src={hotspot.hotspotImage!.url}
+                          alt={hotspot.hotspotImage!.name}
+                          className="w-full h-full object-cover rounded animate-pulse-scale"
+                          draggable={false}
+                        />
+                      )}
                     </div>
                   ))}
               </>
@@ -533,7 +668,6 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
 
         {/* Right side: Hotspot properties (7 columns) */}
         <div className="md:col-span-7">
-          {/* Add Hotspot Button - Top Right */}
           <div className="flex justify-end mb-4">
             <button
               onClick={addNewHotspot}
@@ -546,13 +680,11 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
             </button>
           </div>
           
-          {/* Hotspot Editing Area */}
           {selectedHotspot && (
             <div className="bg-white rounded-lg p-4 border border-gray-200 mb-4">
-              <h3 className="text-lg font-medium mb-4">Edit Hotspot</h3>
+              <h3 className="text-lg font-medium mb-4">{getSelectedHotspot()?.isSaved ? "Edit Hotspot" : "New Hotspot"}</h3>
               
               <div className="space-y-4">
-                {/* Hotspot Title Input */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Hotspot Title
@@ -562,16 +694,42 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                     value={hotspotTitle}
                     onChange={(e) => setHotspotTitle(e.target.value)}
                     placeholder="Enter hotspot title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 border ${titleError ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
                   />
+                  {titleError && (
+                    <p className="text-red-500 text-sm mt-1">{titleError}</p>
+                  )}
                 </div>
 
-                {/* Hotspot Image Upload - Only show if no image uploaded */}
-                {!getSelectedHotspot()?.hotspotImage && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Hotspot Image
-                    </label>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hotspot Style
+                  </label>
+                  
+                  <div className="flex space-x-4 mb-3">
+                    <button
+                      onClick={() => updateHotspot(selectedHotspot, { useDefaultSvg: true, hotspotImage: undefined })}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        getSelectedHotspot()?.useDefaultSvg
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Default Icon
+                    </button>
+                    <button
+                      onClick={() => updateHotspot(selectedHotspot, { useDefaultSvg: false })}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        !getSelectedHotspot()?.useDefaultSvg
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Custom Image
+                    </button>
+                  </div>
+                  
+                  {!getSelectedHotspot()?.useDefaultSvg && !getSelectedHotspot()?.hotspotImage && (
                     <div
                       {...getHotspotImageRootProps()}
                       className={`border-2 border-dashed rounded-lg p-4 mb-3 text-center cursor-pointer transition-colors ${
@@ -594,19 +752,24 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                         </>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Show uploaded hotspot image info */}
-                {getSelectedHotspot()?.hotspotImage && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Hotspot Image
-                    </label>
+                  {getSelectedHotspot()?.useDefaultSvg && (
+                                          <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex justify-center mb-2">
+                        <div className="w-16 h-16 overflow-hidden">
+                          <DefaultHotspotSvg />
+                        </div>
+                      </div>
+                      <p className="text-sm text-center text-gray-600">Default hotspot icon with animation</p>
+                    </div>
+                  )}
+
+                  {!getSelectedHotspot()?.useDefaultSvg && getSelectedHotspot()?.hotspotImage && (
                     <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-gray-200 rounded overflow-hidden mr-2">
-                          <img src={getSelectedHotspot()?.hotspotImage?.url} alt={getSelectedHotspot()?.hotspotImage?.name} className="w-full h-full object-cover" />
+                          <img src={getSelectedHotspot()?.hotspotImage?.url} alt={getSelectedHotspot()?.hotspotImage?.name} className="w-full h-full object-cover animate-pulse-scale" />
                         </div>
                         <span className="text-sm truncate max-w-[200px]" title={getSelectedHotspot()?.hotspotImage?.name}>
                           {getSelectedHotspot()?.hotspotImage?.name}
@@ -622,10 +785,9 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                         </svg>
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* Position Controls - In one row */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -635,14 +797,19 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                       type="range"
                       min="0"
                       max="100"
-                      value={getSelectedHotspot()?.hotspotImage?.x || 40}
+                      value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.x || 40) : (getSelectedHotspot()?.hotspotImage?.x || 40)}
                       onChange={(e) => {
                         const currentHotspot = getSelectedHotspot();
-                        if (currentHotspot?.hotspotImage) {
+                        const newX = parseInt(e.target.value);
+                        if (currentHotspot?.useDefaultSvg) {
+                          updateHotspot(selectedHotspot, {
+                            x: newX
+                          });
+                        } else if (currentHotspot?.hotspotImage) {
                           updateHotspot(selectedHotspot, {
                             hotspotImage: {
                               ...currentHotspot.hotspotImage,
-                              x: parseInt(e.target.value)
+                              x: newX
                             }
                           });
                         }
@@ -650,7 +817,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                       className="w-full"
                     />
                     <div className="text-xs text-gray-500 mt-1">
-                      {getSelectedHotspot()?.hotspotImage?.x || 40}%
+                      {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.x || 40) : (getSelectedHotspot()?.hotspotImage?.x || 40)}%
                     </div>
                   </div>
                   <div>
@@ -661,14 +828,19 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                       type="range"
                       min="0"
                       max="100"
-                      value={getSelectedHotspot()?.hotspotImage?.y || 40}
+                      value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.y || 40) : (getSelectedHotspot()?.hotspotImage?.y || 40)}
                       onChange={(e) => {
                         const currentHotspot = getSelectedHotspot();
-                        if (currentHotspot?.hotspotImage) {
+                        const newY = parseInt(e.target.value);
+                        if (currentHotspot?.useDefaultSvg) {
+                          updateHotspot(selectedHotspot, {
+                            y: newY
+                          });
+                        } else if (currentHotspot?.hotspotImage) {
                           updateHotspot(selectedHotspot, {
                             hotspotImage: {
                               ...currentHotspot.hotspotImage,
-                              y: parseInt(e.target.value)
+                              y: newY
                             }
                           });
                         }
@@ -676,12 +848,11 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                       className="w-full"
                     />
                     <div className="text-xs text-gray-500 mt-1">
-                      {getSelectedHotspot()?.hotspotImage?.y || 40}%
+                      {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.y || 40) : (getSelectedHotspot()?.hotspotImage?.y || 40)}%
                     </div>
                   </div>
                 </div>
 
-                {/* Scale Control */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Scale (%)
@@ -690,14 +861,21 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                     type="range"
                     min="20"
                     max="200"
-                    value={getSelectedHotspot()?.hotspotImage?.scale || 60}
+                    value={getSelectedHotspot()?.useDefaultSvg ? 60 : (getSelectedHotspot()?.hotspotImage?.scale || 60)}
                     onChange={(e) => {
                       const currentHotspot = getSelectedHotspot();
-                      if (currentHotspot?.hotspotImage) {
+                      const newScale = parseInt(e.target.value);
+                      if (currentHotspot?.useDefaultSvg) {
+                        // For default SVG, we only update the scale visually
+                        // We can store it in a separate field if needed
+                        updateHotspot(selectedHotspot, {
+                          scale: newScale
+                        });
+                      } else if (currentHotspot?.hotspotImage) {
                         updateHotspot(selectedHotspot, {
                           hotspotImage: {
                             ...currentHotspot.hotspotImage,
-                            scale: parseInt(e.target.value)
+                            scale: newScale
                           }
                         });
                       }
@@ -705,11 +883,10 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                     className="w-full"
                   />
                   <div className="text-xs text-gray-500 mt-1">
-                    {getSelectedHotspot()?.hotspotImage?.scale || 60}%
+                    {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 60) : (getSelectedHotspot()?.hotspotImage?.scale || 60)}%
                   </div>
                 </div>
 
-                {/* Action Type */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Action Type
@@ -724,7 +901,6 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                   </select>
                 </div>
 
-                {/* URL Input */}
                 {getSelectedHotspot()?.action === "url" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -733,14 +909,19 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                     <input
                       type="url"
                       value={getSelectedHotspot()?.url || ""}
-                      onChange={(e) => updateHotspot(selectedHotspot, { url: e.target.value })}
+                      onChange={(e) => {
+                        updateHotspot(selectedHotspot, { url: e.target.value });
+                        setUrlError(null);
+                      }}
                       placeholder="https://example.com"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    {urlError && (
+                      <p className="text-red-500 text-sm mt-1">{urlError}</p>
+                    )}
                   </div>
                 )}
 
-                {/* Popup Content */}
                 {getSelectedHotspot()?.action === "popup" && (
                   <div className="space-y-3">
                     <div>
@@ -783,19 +964,20 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                         )}
                       </div>
 
-                      {/* Display uploaded popup images */}
                       <div className="mt-2 space-y-2">
                         {(getSelectedHotspot()?.popupContent?.images || []).map((image) => (
                           <div key={image.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                            <div className="flex items-center">
-                              <div className="w-8 h-8 bg-gray-200 rounded overflow-hidden mr-2">
-                                <img src={image.url} alt={image.name} className="w-full h-full object-cover" />
+                            <div className="flex items-center overflow-hidden">
+                              <div className="w-12 h-12 bg-gray-200 rounded overflow-hidden mr-2 flex-shrink-0">
+                                <img src={image.url} alt={image.name} className="w-full h-full object-contain" />
                               </div>
-                              <span className="text-sm truncate max-w-[120px]" title={image.name}>{image.name}</span>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-sm block truncate" title={image.name}>{image.name}</span>
+                              </div>
                             </div>
                             <button
                               onClick={() => removePopupImage(image.id)}
-                              className="text-red-500 hover:text-red-700"
+                              className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -808,132 +990,30 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                   </div>
                 )}
 
-                {/* Audio Selection - 添加在URL/Popup下方 */}
-                <div className="border-t pt-4">
-                  <h4 className="text-md font-medium text-gray-700 mb-3">Audio Selection</h4>
-                  
-                  {/* Audio Type Selection */}
-                  <div className="mb-4">
-                    <div className="flex space-x-4">
-                      <button
-                        onClick={() => setAudioType('system')}
-                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                          audioType === 'system'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        System Audio
-                      </button>
-                      <button
-                        onClick={() => setAudioType('upload')}
-                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                          audioType === 'upload'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        Upload Audio
-                      </button>
-                    </div>
-                  </div>
+                {/* Audio selection section removed */}
 
-                  {/* System Audio Dropdown */}
-                  {audioType === 'system' && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Audio
-                      </label>
-                      <select
-                        value={selectedAudio?.id || ''}
-                        onChange={(e) => {
-                          const audio = SYSTEM_AUDIO_OPTIONS.find(a => a.id === e.target.value);
-                          if (audio) selectSystemAudio(audio);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Choose an audio track</option>
-                        {SYSTEM_AUDIO_OPTIONS.map((audio) => (
-                          <option key={audio.id} value={audio.id}>
-                            {audio.name} ({audio.category}) - {audio.duration}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Upload Audio */}
-                  {audioType === 'upload' && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Upload Audio File
-                      </label>
-                      <div
-                        {...getAudioRootProps()}
-                        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                          isAudioDragActive
-                            ? "border-blue-500 bg-blue-50"
-                            : "border-gray-300 hover:border-blue-400"
-                        } ${uploading ? "opacity-50" : ""}`}
-                      >
-                        <input {...getAudioInputProps()} />
-                        {uploading ? (
-                          <p className="text-sm text-gray-600">Uploading...</p>
-                        ) : (
-                          <>
-                            <svg className="w-6 h-6 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                            </svg>
-                            <p className="text-sm text-gray-600">
-                              Drop audio file here or click to upload
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Selected Audio Display */}
-                  {selectedAudio && (
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-sm">{selectedAudio.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {selectedAudio.type === 'system' ? selectedAudio.category : 'Uploaded File'}
-                            {selectedAudio.duration && ` • ${selectedAudio.duration}`}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedAudio(null);
-                            updateFormData("audio", null);
-                          }}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Save Hotspot Button */}
-                <div className="pt-4">
+                <div className="pt-4 flex space-x-2">
                   <button
                     onClick={saveHotspot}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                   >
                     Save Hotspot
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedHotspot(null);
+                      setIsEditing(false);
+                      setError(null);
+                    }}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Hotspots List */}
           {hotspots.filter(h => h.isSaved).length > 0 && (
             <div className="mt-6">
               <h3 className="text-lg font-medium mb-4">Saved Hotspots</h3>
@@ -944,7 +1024,11 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                     <div key={hotspot.id} className="bg-gray-50 p-3 rounded-lg">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          {hotspot.hotspotImage && (
+                          {hotspot.useDefaultSvg ? (
+                            <div className="w-10 h-10 overflow-hidden">
+                              <DefaultHotspotSvg />
+                            </div>
+                          ) : hotspot.hotspotImage && (
                             <div className="w-10 h-10 bg-gray-200 rounded overflow-hidden">
                               <img src={hotspot.hotspotImage.url} alt={hotspot.hotspotImage.name} className="w-full h-full object-cover" />
                             </div>
@@ -952,10 +1036,29 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                           <div>
                             <div className="font-medium">{hotspot.title || `Hotspot ${hotspot.id}`}</div>
                             <div className="text-sm text-gray-500">
-                              Position: {hotspot.hotspotImage?.x || 0}%, {hotspot.hotspotImage?.y || 0}% | 
-                              Scale: {hotspot.hotspotImage?.scale || 0}% | 
-                              {hotspot.action === 'url' ? `URL: ${hotspot.url}` : `Popup: ${hotspot.popupContent?.title || 'Untitled'}`}
+                              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                <span>Left: {Math.round(hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || 0))}%</span>
+                                <span>Top: {Math.round(hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || 0))}%</span>
+                                <span>Scale: {Math.round(hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60))}%</span>
+                                <span>{hotspot.action === 'url' ? `URL: ${hotspot.url}` : `Popup: ${hotspot.popupContent?.title || 'Untitled'}`}</span>
+                              </div>
                             </div>
+                            
+                                                          {/* Show popup images if action is popup and there are images */}
+                            {hotspot.action === 'popup' && hotspot.popupContent?.images && hotspot.popupContent.images.length > 0 && (
+                              <div className="mt-2 flex space-x-2 overflow-hidden pb-1 max-w-full">
+                                {hotspot.popupContent.images.slice(0, 5).map((image) => (
+                                  <div key={image.id} className="w-10 h-10 flex-shrink-0 bg-gray-200 rounded overflow-hidden">
+                                    <img src={image.url} alt="" className="w-full h-full object-cover" />
+                                  </div>
+                                ))}
+                                {hotspot.popupContent.images.length > 5 && (
+                                  <div className="w-10 h-10 flex-shrink-0 bg-gray-100 rounded flex items-center justify-center text-gray-500 text-xs">
+                                    +{hotspot.popupContent.images.length - 5}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex space-x-2">
@@ -996,10 +1099,9 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
         </button>
         <button
           onClick={nextStep}
-          disabled={hotspots.filter(h => h.isSaved).length === 0}
-          className="px-6 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700"
         >
-          Continue
+          {hotspots.filter(h => h.isSaved).length === 0 ? "Skip & Continue" : "Continue"}
         </button>
       </div>
     </div>

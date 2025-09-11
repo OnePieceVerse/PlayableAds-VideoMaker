@@ -27,6 +27,8 @@ export const API_PATHS = {
   download: (projectId: string, fileName: string) => `${config.apiUrl}/download/${projectId}/${fileName}`,
   downloadFile: (filePath: string) => `${config.apiUrl}/download-file?file_path=${encodeURIComponent(filePath.replace(/^\//, ""))}`,
   projectFilesInfo: (projectId: string) => `${config.apiUrl}/project-files-info?project_id=${projectId}`,
+  systemAudio: `${config.apiUrl}/system-audio`,
+  systemAudioFile: (filename: string) => `${config.apiUrl}/system-audio/${filename}`,
 };
 
 // 获取完整URL（用于资源访问）

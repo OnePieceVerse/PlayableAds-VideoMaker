@@ -9,7 +9,7 @@ interface LanguageContextType {
   t: (key: TranslationKey) => string;
 }
 
-const defaultLocale: Locale = 'zh'; // 默认使用中文
+const defaultLocale: Locale = 'en'; // 默认使用英文
 
 const LanguageContext = createContext<LanguageContextType>({
   locale: defaultLocale,
