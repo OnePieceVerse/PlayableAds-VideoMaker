@@ -140,13 +140,13 @@ async def get_video_metadata(file_path: Path) -> dict:
 
 def get_file_path(file_id: str) -> Path:
     """
-    根据文件ID获取文件路径
+    根据文件ID获取文件路径，递归搜索所有子目录
     
     Args:
         file_id: 文件ID
         
     Returns:
-        Path: 文件路径
+        Path: 文件路径，如果找不到则返回None
     """
     # 项目目录
     projects_dir = Path("projects")
@@ -156,10 +156,35 @@ def get_file_path(file_id: str) -> Path:
         if not project_dir.is_dir():
             continue
         
-        # 查找文件ID对应的文件
-        for file_path in project_dir.glob("*"):
-            if file_path.stem == file_id:
-                return file_path
+        # 递归查找文件ID对应的文件
+        found_file = _find_file_recursive(project_dir, file_id)
+        if found_file:
+            return found_file
     
     # 如果找不到文件，返回None
+    return None 
+
+def _find_file_recursive(directory: Path, file_id: str) -> Path:
+    """
+    递归查找目录中的文件
+    
+    Args:
+        directory: 要搜索的目录
+        file_id: 文件ID
+        
+    Returns:
+        Path: 找到的文件路径，如果找不到则返回None
+    """
+    # 首先检查当前目录下的文件
+    for file_path in directory.glob("*"):
+        if file_path.is_file() and file_path.stem == file_id:
+            return file_path
+    
+    # 然后递归检查所有子目录
+    for subdir in directory.glob("*"):
+        if subdir.is_dir():
+            found_file = _find_file_recursive(subdir, file_id)
+            if found_file:
+                return found_file
+    
     return None 

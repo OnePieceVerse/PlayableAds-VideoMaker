@@ -69,14 +69,16 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
     project_dir = PROJECTS_DIR / output_id
     os.makedirs(project_dir, exist_ok=True)
     
-    # 创建输出目录
-    output_dir = project_dir / "output"
-    os.makedirs(output_dir, exist_ok=True)
-    
     # 创建预览目录
     preview_dir = project_dir / "preview"
+    relative_images_dir = "assets/images"
+    relative_audios_dir = "assets/audios"
+    image_dir = preview_dir / relative_images_dir
+    audio_dir = preview_dir / relative_audios_dir
     os.makedirs(preview_dir, exist_ok=True)
-    
+    os.makedirs(image_dir, exist_ok=True)
+    os.makedirs(audio_dir, exist_ok=True)
+
     # 获取模板目录
     template_dir = Path("app/templates/image")
     if not template_dir.exists():
@@ -101,11 +103,24 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
             # 获取文件名
             file_name = image_path.name
             logger.info(f"Processing image: {file_name}")
-            main_images.append(file_name)
             
-            # 复制文件到预览目录
-            shutil.copy(image_path, preview_dir / file_name)
+            # 目标路径
+            target_path = image_dir / file_name
             
+            # 只有当源文件和目标文件不同时才移动
+            if image_path != target_path:
+                try:
+                    # 移动文件到预览目录
+                    shutil.move(image_path, target_path)
+                    logger.info(f"Moved image file from {image_path} to {target_path}")
+                except shutil.SameFileError:
+                    logger.warning(f"Source and destination are the same file: {image_path}")
+            else:
+                logger.info(f"Image file already in correct location: {image_path}")
+                
+            image_path = target_path
+            logger.info(f"image_path2: {relative_images_dir}/{file_name}")
+            main_images.append(relative_images_dir + "/" + file_name)
             # 读取图片文件并转换为base64
             with open(image_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
@@ -113,7 +128,8 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
                 mime_type = f"image/{image_ext}"
                 if image_ext == "jpg":
                     mime_type = "image/jpeg"
-                images_data[file_name] = f"data:{mime_type};base64,{image_data}"
+                # 使用字符串作为键，而不是 Path 对象
+                images_data[relative_images_dir + "/" + file_name] = f"data:{mime_type};base64,{image_data}"
                 logger.info(f"Added base64 image data for {file_name}")
     
     # 处理热点图片
@@ -132,7 +148,7 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
         }
         
         # 处理跳转URL
-        if hotspot.type == "jump" and hotspot.url:
+        if hotspot.type == "url" and hotspot.url:
             hotspot_info["url"] = hotspot.url
             logger.info(f"Hotspot {i+1} is jump type with URL: {hotspot.url}")
         
@@ -145,16 +161,30 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
             if hotspot.modalImgs:
                 modal_images = []
                 for img_id in hotspot.modalImgs:
+                    logger.info(f"Processing modal image ID: {img_id}")
                     image_path = get_file_path(img_id)
                     if image_path and image_path.exists():
                         # 获取文件名
                         file_name = image_path.name
-                        modal_images.append(file_name)
+                        
                         logger.info(f"Adding modal image: {file_name}")
                         
-                        # 复制文件到预览目录
-                        shutil.copy(image_path, preview_dir / file_name)
+                        # 目标路径
+                        target_path = image_dir / file_name
                         
+                        # 只有当源文件和目标文件不同时才移动
+                        if image_path != target_path:
+                            try:
+                                # 移动文件到预览目录
+                                shutil.move(image_path, target_path)
+                                logger.info(f"Moved modal image from {image_path} to {target_path}")
+                            except shutil.SameFileError:
+                                logger.warning(f"Source and destination are the same file: {image_path}")
+                        else:
+                            logger.info(f"Modal image already in correct location: {image_path}")
+                            
+                        image_path = target_path
+                        modal_images.append(relative_images_dir + "/" + file_name)
                         # 读取图片文件并转换为base64
                         with open(image_path, "rb") as f:
                             image_data = base64.b64encode(f.read()).decode("utf-8")
@@ -162,10 +192,49 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
                             mime_type = f"image/{image_ext}"
                             if image_ext == "jpg":
                                 mime_type = "image/jpeg"
-                            images_data[file_name] = f"data:{mime_type};base64,{image_data}"
+                            # 使用字符串作为键，而不是 Path 对象
+                            images_data[relative_images_dir + "/" + file_name] = f"data:{mime_type};base64,{image_data}"
                 
                 hotspot_info["modalImgs"] = modal_images
                 logger.info(f"Hotspot {i+1} has {len(modal_images)} modal images")
+        
+        # 处理热点自定义图片
+        if hotspot.hotspotImage:
+            logger.info(f"Processing hotspot custom image ID: {hotspot.hotspotImage}")
+            hotspot_image_path = get_file_path(hotspot.hotspotImage)
+            if hotspot_image_path and hotspot_image_path.exists():
+                # 获取文件名
+                file_name = hotspot_image_path.name
+                
+                logger.info(f"Adding hotspot custom image: {file_name}")
+                
+                # 目标路径
+                target_path = image_dir / file_name
+                
+                # 只有当源文件和目标文件不同时才移动
+                if hotspot_image_path != target_path:
+                    try:
+                        # 移动文件到预览目录
+                        shutil.move(hotspot_image_path, target_path)
+                        logger.info(f"Moved hotspot image from {hotspot_image_path} to {target_path}")
+                    except shutil.SameFileError:
+                        logger.warning(f"Source and destination are the same file: {hotspot_image_path}")
+                else:
+                    logger.info(f"Hotspot image already in correct location: {hotspot_image_path}")
+                    
+                hotspot_image_path = target_path
+                hotspot_info["hotspotImage"] = relative_images_dir + "/" + file_name
+                # 读取图片文件并转换为base64
+                with open(hotspot_image_path, "rb") as f:
+                    image_data = base64.b64encode(f.read()).decode("utf-8")
+                    image_ext = hotspot_image_path.suffix.lower()[1:]  # 去掉点号
+                    mime_type = f"image/{image_ext}"
+                    if image_ext == "jpg":
+                        mime_type = "image/jpeg"
+                    # 使用字符串作为键，而不是 Path 对象
+                    images_data[relative_images_dir + "/" + file_name] = f"data:{mime_type};base64,{image_data}"
+            else:
+                logger.warning(f"Hotspot custom image not found for ID: {hotspot.hotspotImage}")
         
         hotspot_data.append(hotspot_info)
     
@@ -186,11 +255,23 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
         if audio_path and audio_path.exists():
             # 获取文件名
             file_name = audio_path.name
-            audio_files.append(file_name)
             logger.info(f"Processing audio file: {file_name}")
             
-            # 复制文件到预览目录
-            shutil.copy(audio_path, preview_dir / file_name)
+            # 目标路径
+            target_path = audio_dir / file_name
+            
+            # 只有当源文件和目标文件不同时才复制
+            if audio_path != target_path:
+                try:
+                    # 复制文件到预览目录
+                    shutil.copy(audio_path, target_path)
+                    logger.info(f"Copied audio file from {audio_path} to {target_path}")
+                except shutil.SameFileError:
+                    logger.warning(f"Source and destination are the same file: {audio_path}")
+            else:
+                logger.info(f"Audio file already in correct location: {audio_path}")
+                
+            audio_files.append(relative_audios_dir + "/" + file_name)
         else:
             logger.warning(f"Audio file not found for ID: {audio_id}")
     
@@ -208,9 +289,21 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
             file_name = cta_image_path.name
             logger.info(f"Processing CTA button image: {file_name}")
             
-            # 复制文件到预览目录
-            shutil.copy(cta_image_path, preview_dir / file_name)
+            # 目标路径
+            target_path = image_dir / file_name
             
+            # 只有当源文件和目标文件不同时才移动
+            if cta_image_path != target_path:
+                try:
+                    # 移动文件到预览目录
+                    shutil.move(cta_image_path, target_path)
+                    logger.info(f"Moved CTA button image from {cta_image_path} to {target_path}")
+                except shutil.SameFileError:
+                    logger.warning(f"Source and destination are the same file: {cta_image_path}")
+            else:
+                logger.info(f"CTA button image already in correct location: {cta_image_path}")
+                
+            cta_image_path = target_path
             # 读取图片文件并转换为base64
             with open(cta_image_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
@@ -218,12 +311,13 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
                 mime_type = f"image/{image_ext}"
                 if image_ext == "jpg":
                     mime_type = "image/jpeg"
-                images_data[file_name] = f"data:{mime_type};base64,{image_data}"
+                # 使用正确的路径字符串作为键
+                images_data[relative_images_dir + "/" + file_name] = f"data:{mime_type};base64,{image_data}"
                 logger.info(f"Added base64 CTA button image data for {file_name}")
             
             cta_button_info = {
                 "type": cta_button.type,
-                "image": file_name,
+                "image": relative_images_dir + "/" + file_name,
                 "position": {
                     "left": f"{cta_button.position.left}%",
                     "top": f"{cta_button.position.top}%"
@@ -239,10 +333,6 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
     config_data = {
         "title": request.app_name,
         "appImgs": main_images,
-        "download": {
-            "url": "https://apps.apple.com/app/id1234567890",
-            "text": "Download Now"
-        },
         "hotspots": hotspot_data,
         "cta_buttons": cta_buttons_data
     }
@@ -251,6 +341,10 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
     if audio_files:
         config_data["audio"] = audio_files
         logger.info(f"Added {len(audio_files)} audio files to config")
+    
+    # 添加日志以检查数据
+    logger.info(f"config_data: {config_data}")
+    logger.info(f"images_data keys: {list(images_data.keys())}")
     
     # 写入配置文件到预览目录
     logger.info("Writing config.js file to preview directory")
@@ -295,27 +389,16 @@ async def generate_image_ad_html(request: ImageGenerateRequest, output_id: str) 
         platform_value = platform.value
         logger.info(f"Building for platform: {platform_value}")
         
-        if platform_value in ['google', 'tiktok']:
-            # Google 和 TikTok 平台生成 ZIP 文件
+        if platform_value in ["google", "moloco", "tiktok"]:
+            # 这些平台需要创建ZIP包
             logger.info(f"Creating ZIP file for platform: {platform_value}")
             
-            # 从预览目录复制文件到输出目录（用于打包）
-            logger.info(f"Copying files from preview directory to output directory for packaging")
-            for file_path in preview_dir.glob('**/*'):
-                if file_path.is_file():
-                    relative_path = file_path.relative_to(preview_dir)
-                    output_file_path = output_dir / relative_path
-                    # 确保目标目录存在
-                    output_file_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(file_path, output_file_path)
-                    logger.info(f"Copied {relative_path} to output directory")
-            
-            # 创建zip文件
+            # 创建zip文件，直接从preview目录打包，不再复制到output目录
             zip_file_path = project_dir / f"{platform_value}.zip"
             with zipfile.ZipFile(zip_file_path, 'w') as zipf:
-                for file_path in output_dir.glob('**/*'):
+                for file_path in preview_dir.glob('**/*'):
                     if file_path.is_file():
-                        zipf.write(file_path, file_path.relative_to(output_dir))
+                        zipf.write(file_path, file_path.name)
                         logger.info(f"Added {file_path.name} to ZIP file")
             
             output_paths.append(f"/api/download/{output_id}/{platform_value}.zip")

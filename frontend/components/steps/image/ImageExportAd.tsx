@@ -252,23 +252,36 @@ const generateAd = async () => {
         version: version,
         app_name: appName,
         orientation: orientation,
-        hotspots: formData.hotspots?.length ? formData.hotspots.map((hotspot: any) => ({
-          left: hotspot.position?.left || hotspot.x || 0,
-          top: hotspot.position?.top || hotspot.y || 0,
-          type: hotspot.type || hotspot.action || "popup",
-          url: hotspot.url,
-          modalImgs: hotspot.popupContent?.images?.map((img: any) => img.id) || [],
-          modalText: hotspot.popupContent?.title || hotspot.title || "",
-          imgIndex: 0, // 只有一张主图，所以索引为0
-          scale: hotspot.scale || 1.0,
-          hotspotImage: hotspot.hotspotImage?.id || null
-        })) : [],
+        hotspots: formData.hotspots?.length ? formData.hotspots.map((hotspot: any) => {
+          console.log("Processing hotspot:", hotspot);
+          
+          // 处理弹窗图片
+          const modalImgs = hotspot.popupContent?.images?.map((img: any) => {
+            console.log("Popup image:", img);
+            return img.id;
+          }) || [];
+          
+          console.log("Hotspot image ID:", hotspot.hotspotImage?.id);
+          console.log("Modal images:", modalImgs);
+          
+          return {
+            left: hotspot.x || 0,
+            top: hotspot.y || 0,
+            type: hotspot.type || hotspot.action || "popup",
+            url: hotspot.url,
+            modalImgs: modalImgs,
+            modalText: hotspot.popupContent?.title || hotspot.title || "",
+            imgIndex: 0, // 只有一张主图，所以索引为0
+            scale: hotspot.scale || 1.0,
+            hotspotImage: hotspot.hotspotImage?.id || null
+          };
+        }) : [],
         cta_buttons: formData.ctaButton ? [{
           type: "endscreen",
           image_id: formData.ctaButton.image?.id,
           position: {
-            left: (formData.ctaButton.position?.left || 0) / 100,
-            top: (formData.ctaButton.position?.top || 0) / 100
+            left: formData.ctaButton.position?.left || 0,
+            top: formData.ctaButton.position?.top || 0
           },
           scale: formData.ctaButton.scale || 1.0
         }] : [],
@@ -327,35 +340,36 @@ const generateAd = async () => {
       if (result?.file_url && result.file_url.includes(".zip")) {
         // 对于ZIP文件，使用项目ID和文件名
         const fileName = result.file_url.split("/").pop();
-        const downloadUrl = API_PATHS.download(formData.project_id, fileName);
-        window.open(downloadUrl, "_blank");
+        // 构建下载URL - 使用API_PATHS.download来确保路径正确
+        const downloadUrl = API_PATHS.download(formData.project_id, fileName || '');
+        
+        // 创建隐藏的下载链接并触发点击
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.setAttribute('download', fileName || 'download.zip');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       } else {
         // 对于单个HTML文件，使用原来的逻辑
         // 确保使用file_url而不是preview_url
         const originalPath = result?.file_url || "";
+        const fileName = originalPath.split("/").pop();
         
-        // 检查是否是Google、Moloco或TikTok平台，如果是，需要特殊处理
-        if ((selectedPlatforms.includes("google") || selectedPlatforms.includes("moloco") || selectedPlatforms.includes("tiktok")) && selectedPlatforms.length === 1) {
-          // 对于Google、Moloco和TikTok平台，文件URL应该指向ZIP文件
-          const projectId = formData.project_id;
-          const safeAppName = encodeURIComponent(appName);
-          const versionStr = encodeURIComponent(version);
-          const lang = encodeURIComponent(language || "en");
-          const platform = selectedPlatforms.includes("google") ? "google" : 
-                           selectedPlatforms.includes("moloco") ? "moloco" : "tiktok";
-          
-          // 构建ZIP文件名
-          const zipFileName = `${safeAppName}-${platform}-${lang}-${versionStr}.zip`;
-          const downloadUrl = API_PATHS.download(projectId, zipFileName);
-          window.open(downloadUrl, "_blank");
-        } else {
-          // 对于其他平台，使用原始file_url
-          const downloadUrl = API_PATHS.downloadFile(originalPath);
-          window.open(downloadUrl, "_blank");
-        }
+        // 构建下载URL - 使用API_PATHS.download来确保路径正确
+        const downloadUrl = API_PATHS.download(formData.project_id, fileName || '');
+        
+        // 创建隐藏的下载链接并触发点击
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.setAttribute('download', fileName || 'download.html');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
-    } catch (error) {
-      setErrorMessage("Failed to download file. Please try again.");
+    } catch (e) {
+      console.error("Error downloading ad:", e);
+      setErrorMessage("Failed to download ad. Please try again.");
     }
   };
 

@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="format-detection" content="telephone=no">
+  <!-- 允许在iframe中打开链接 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src * 'self' data: gap: 'unsafe-inline' 'unsafe-eval'; frame-src * 'self' data: gap:; connect-src * 'self' data: gap:;">
   <title>Playable Image Ads</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -15,6 +17,11 @@
 <body>
   <!-- 主应用容器 -->
   <div id="app"></div>
+  
+  <!-- CTA 按钮容器 -->
+  <div id="cta-container" class="cta-container">
+    <!-- CTA 按钮将在这里动态生成 -->
+  </div>
   
   <!-- 弹窗容器 -->
   <div id="modal" class="hidden">
@@ -27,7 +34,7 @@
   
   <!-- 音频控制器（隐藏） -->
   <div id="audio-controls" class="hidden">
-    <button id="audio-toggle">🔊</button>
+    <button id="audio-toggle"></button>
   </div>
   
   <!-- 加载脚本 -->

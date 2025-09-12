@@ -117,13 +117,24 @@ async def download_file(project_id: str, file_name: str):
         else:
             raise HTTPException(status_code=404, detail="File not found")
     
+    # 确定Content-Type
+    content_type = "application/zip" if file_path.suffix == ".zip" else "text/html"
+    if file_path.suffix == ".html":
+        content_type = "text/html"
+    elif file_path.suffix == ".zip":
+        content_type = "application/zip"
+    elif file_path.suffix == ".png":
+        content_type = "image/png"
+    elif file_path.suffix == ".jpg" or file_path.suffix == ".jpeg":
+        content_type = "image/jpeg"
+    else:
+        content_type = "application/octet-stream"
+    
     # 设置响应头，强制下载
     headers = {
-        "Content-Disposition": f'attachment; filename="{file_name}"'
+        "Content-Disposition": f'attachment; filename="{file_name}"',
+        "Access-Control-Expose-Headers": "Content-Disposition"
     }
-    
-    # 确定Content-Type
-    content_type = "application/zip" if file_path.suffix == ".zip" else "application/octet-stream"
     
     return FileResponse(
         path=file_path,

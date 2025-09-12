@@ -39,7 +39,7 @@ const CTAButtonStep: React.FC<StepProps> = ({
   // CTA Button states
   const [currentButton, setCurrentButton] = useState<CTAButton | null>(formData.ctaButton || null);
   const [position, setPosition] = useState({ left: 20, top: 20 });
-  const [scale, setScale] = useState(0.2); // 20% of screen width
+  const [scale, setScale] = useState(20); // 20% of screen width
   const [isDragging, setIsDragging] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +79,7 @@ const CTAButtonStep: React.FC<StepProps> = ({
       uploadFormData.append("file", file);
       uploadFormData.append("type", "image");
       uploadFormData.append("step", "cta_buttons");
+      uploadFormData.append("project_id", formData.project_id); // Add project_id
 
       // Upload to backend API
       const response = await fetch(API_PATHS.upload, {
@@ -150,7 +151,8 @@ const CTAButtonStep: React.FC<StepProps> = ({
   // Handle CTA button scale change
   const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
-    const newScale = value / 100;
+    // 直接使用百分比值，不再除以100
+    const newScale = value;
     setScale(newScale);
 
     if (currentButton) {
@@ -273,15 +275,15 @@ const CTAButtonStep: React.FC<StepProps> = ({
                   className="w-full h-full object-contain"
                 />
                 
-                {/* CTA Button preview */}
+                {/* Display CTA button preview */}
                 {currentButton && (
                   <div
                     className={`absolute ${isDragging ? 'pointer-events-none' : 'cursor-move'}`}
                     style={{
                       left: `${position.left}%`,
                       top: `${position.top}%`,
-                      transform: `translate(-50%, -50%)`,
-                      width: `${scale * 100}%`,
+                      width: `${scale}%`, // 使用百分比宽度
+                      transform: 'translate(-50%, -50%)',
                       transition: isDragging ? 'none' : 'all 0.05s ease-out',
                       touchAction: 'none',
                       zIndex: 10
@@ -291,7 +293,7 @@ const CTAButtonStep: React.FC<StepProps> = ({
                     <img
                       src={currentButton.image.url}
                       alt="CTA Button"
-                      className="pointer-events-none w-full h-full object-contain animate-pulse-scale"
+                      className="pointer-events-none w-full h-auto object-contain animate-pulse-scale"
                       draggable="false"
                     />
                   </div>
@@ -392,7 +394,7 @@ const CTAButtonStep: React.FC<StepProps> = ({
                         </div>
                         <div>
                           <p className="text-gray-500">Scale:</p>
-                          <p className="font-medium">{Math.round(scale * 100)}%</p>
+                          <p className="font-medium">{Math.round(scale)}%</p>
                         </div>
                       </div>
                     </div>
@@ -445,12 +447,12 @@ const CTAButtonStep: React.FC<StepProps> = ({
                       min="0"
                       max="100"
                       step="1"
-                      value={scale * 100}
+                      value={scale}
                       onChange={handleScaleChange}
                       className="w-full"
                     />
                     <div className="flex justify-center text-xs text-gray-500 mt-1">
-                      <span className="font-medium">{Math.round(scale * 100)}%</span>
+                      <span className="font-medium">{Math.round(scale)}%</span>
                     </div>
                   </div>
                   

@@ -811,19 +811,19 @@ const DefaultHotspotSvg = () => (
                           updateHotspot(selectedHotspot, {
                             x: newX
                           });
-                        } else if (currentHotspot?.hotspotImage) {
-                          updateHotspot(selectedHotspot, {
-                            hotspotImage: {
-                              ...currentHotspot.hotspotImage,
-                              x: newX
-                            }
-                          });
-                        }
-                      }}
-                      className="w-full"
+                        updateHotspot(selectedHotspot, {
+                          hotspotImage: currentHotspot.hotspotImage ? {
+                            ...currentHotspot.hotspotImage,
+                            x: newX
+                          } : undefined
+                        });
+                      }
+                    }
+                  }
+                    className="w-full"
                     />
                     <div className="text-xs text-gray-500 mt-1">
-                      {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.x || 40) : (getSelectedHotspot()?.hotspotImage?.x || 40)}%
+                      {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 20) : (getSelectedHotspot()?.hotspotImage?.scale || 20)}%
                     </div>
                   </div>
                   <div>
@@ -842,16 +842,16 @@ const DefaultHotspotSvg = () => (
                           updateHotspot(selectedHotspot, {
                             y: newY
                           });
-                        } else if (currentHotspot?.hotspotImage) {
-                          updateHotspot(selectedHotspot, {
-                            hotspotImage: {
-                              ...currentHotspot.hotspotImage,
-                              y: newY
-                            }
-                          });
-                        }
-                      }}
-                      className="w-full"
+                        updateHotspot(selectedHotspot, {
+                          hotspotImage: currentHotspot.hotspotImage ? {
+                            ...currentHotspot.hotspotImage,
+                            y: newY
+                          } : undefined
+                        });
+                      }
+                    }
+                  }
+                    className="w-full"
                     />
                     <div className="text-xs text-gray-500 mt-1">
                       {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.y || 40) : (getSelectedHotspot()?.hotspotImage?.y || 40)}%
@@ -865,9 +865,9 @@ const DefaultHotspotSvg = () => (
                   </label>
                   <input
                     type="range"
-                    min="20"
-                    max="200"
-                    value={getSelectedHotspot()?.useDefaultSvg ? 60 : (getSelectedHotspot()?.hotspotImage?.scale || 60)}
+                    min="0"
+                    max="100"
+                    value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 20) : (getSelectedHotspot()?.hotspotImage?.scale || 20)}
                     onChange={(e) => {
                       const currentHotspot = getSelectedHotspot();
                       const newScale = parseInt(e.target.value);
@@ -882,14 +882,17 @@ const DefaultHotspotSvg = () => (
                           hotspotImage: {
                             ...currentHotspot.hotspotImage,
                             scale: newScale
-                          }
+                          },
+                          // 同时更新热点根级别的scale
+                          scale: newScale
                         });
                       }
-                    }}
+                    }
+                  }
                     className="w-full"
                   />
                   <div className="text-xs text-gray-500 mt-1">
-                    {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 60) : (getSelectedHotspot()?.hotspotImage?.scale || 60)}%
+                    {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 20) : (getSelectedHotspot()?.hotspotImage?.scale || 20)}%
                   </div>
                 </div>
 

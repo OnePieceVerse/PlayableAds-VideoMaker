@@ -1,0 +1,10 @@
+                      } else if (currentHotspot?.hotspotImage) {
+                        updateHotspot(selectedHotspot, {
+                          hotspotImage: {
+                            ...currentHotspot.hotspotImage,
+                            scale: newScale
+                          },
+                          // 同时更新热点根级别的scale
+                          scale: newScale
+                        });
+                      }
