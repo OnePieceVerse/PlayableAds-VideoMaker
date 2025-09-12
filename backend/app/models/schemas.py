@@ -125,6 +125,7 @@ class Hotspot(BaseModel):
     modalImgs: Optional[List[str]] = None  # Image IDs for popup type
     modalText: Optional[str] = ""  # Text for popup modal
     imgIndex: int  # Index of the image this hotspot belongs to
+    scale: Optional[float] = 1.0  # Scale factor for hotspot image
 
 class ImageGenerateRequest(BaseModel):
     project_id: str

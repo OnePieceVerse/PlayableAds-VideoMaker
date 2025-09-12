@@ -151,7 +151,45 @@ html, body {
   height: 100% !important;
 }
 
-/* 移动端优化 */
+/* 音频控制器样式 */
+#audio-controls {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 200;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+}
+
+#audio-controls:hover {
+  opacity: 1;
+}
+
+#audio-controls.hidden {
+  display: none;
+}
+
+#audio-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+#audio-toggle:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* 响应式调整 */
 @media (max-width: 600px) {
   .app-img {
     width: 100vw;
@@ -183,6 +221,11 @@ html, body {
   }
   #modal-text {
     font-size: 1em;
+  }
+  #audio-toggle {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
   }
 }
 
@@ -226,5 +269,48 @@ html, body {
     height: 44px;
     font-size: 1em;
     bottom: 12px;
+  }
+}
+/* CTA按钮样式 */
+.cta-button {
+  transition: transform 0.2s ease, filter 0.2s ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+
+.cta-button:hover {
+  transform: translate(-50%, -50%) scale(1.05) !important;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.cta-button:active {
+  transform: translate(-50%, -50%) scale(0.95) !important;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+}
+
+/* 热点图片样式 */
+.hotspot-img {
+  transition: transform 0.2s ease, filter 0.2s ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+
+.hotspot-img:hover {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.hotspot-img:active {
+  transform: scale(0.95) !important;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+}
+
+/* 响应式调整 */
+@media (max-width: 600px) {
+  .cta-button {
+    max-width: 150px !important;
+    max-height: 60px !important;
+  }
+  
+  .hotspot-img {
+    width: 80px !important;
+    height: 80px !important;
   }
 }

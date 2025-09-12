@@ -256,10 +256,12 @@ const generateAd = async () => {
           left: hotspot.position?.left || hotspot.x || 0,
           top: hotspot.position?.top || hotspot.y || 0,
           type: hotspot.type || hotspot.action || "popup",
-          url: hotspot.url || "",
+          url: hotspot.url,
           modalImgs: hotspot.popupContent?.images?.map((img: any) => img.id) || [],
           modalText: hotspot.popupContent?.title || hotspot.title || "",
-          imgIndex: 0 // 只有一张主图，所以索引为0
+          imgIndex: 0, // 只有一张主图，所以索引为0
+          scale: hotspot.scale || 1.0,
+          hotspotImage: hotspot.hotspotImage?.id || null
         })) : [],
         cta_buttons: formData.ctaButton ? [{
           type: "endscreen",
@@ -402,7 +404,7 @@ const generateAd = async () => {
           <div
             className={`bg-black rounded-lg overflow-hidden transition-all duration-300 ${
               isLandscape 
-                ? "aspect-video" 
+                ? "aspect-video max-w-[600px] mx-auto flex items-center justify-center" 
                 : "aspect-[9/16] max-w-[400px] mx-auto"
             }`}
           >
@@ -412,7 +414,7 @@ const generateAd = async () => {
                   ref={iframeRef}
                   key={`preview-iframe-${refreshKey}`}
                   src={result.previewUrl || getFullUrl(result.preview_url)}
-                  className={`w-full h-full border-0 ${isLandscape ? "" : "transform rotate-0"}`}
+                  className={`border-0 ${isLandscape ? "w-full h-full max-w-none max-h-full" : "w-full h-full transform rotate-0"}`}
                   title="Playable Ad Preview"
                   sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"
                   style={{

@@ -578,7 +578,7 @@ const DefaultHotspotSvg = () => (
             ref={imageContainerRef}
             className={`bg-black rounded-lg overflow-hidden relative transition-all duration-300 ${
               isLandscape 
-                ? "aspect-video" 
+                ? "aspect-video max-w-[600px] mx-auto flex items-center justify-center" 
                 : "aspect-[9/16] max-w-[400px] mx-auto"
             }`}
           >

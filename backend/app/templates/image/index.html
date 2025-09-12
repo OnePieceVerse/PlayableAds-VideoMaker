@@ -4,12 +4,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <!-- 添加音频相关元数据 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no">
   <title>Playable Image Ads</title>
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+  <!-- 主应用容器 -->
   <div id="app"></div>
+  
+  <!-- 弹窗容器 -->
   <div id="modal" class="hidden">
     <div class="modal-content">
       <button id="close-modal">&times;</button>
@@ -17,6 +24,13 @@
       <div id="modal-imgs"></div>
     </div>
   </div>
+  
+  <!-- 音频控制器（隐藏） -->
+  <div id="audio-controls" class="hidden">
+    <button id="audio-toggle">🔊</button>
+  </div>
+  
+  <!-- 加载脚本 -->
   <script src="images.js"></script>
   <script src="config.js"></script>
   <script src="main.js"></script>

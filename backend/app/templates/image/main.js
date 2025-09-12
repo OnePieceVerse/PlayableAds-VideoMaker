@@ -4,6 +4,80 @@ const fingerSvg = `
 const config = window.PLAYABLE_CONFIG;
 const images = window.PLAYABLE_IMAGES;
 
+// 创建背景音乐元素
+let bgAudio = null;
+let audioPlaying = false;
+const audioControls = document.getElementById('audio-controls');
+const audioToggle = document.getElementById('audio-toggle');
+
+if (config.audio && config.audio.length > 0) {
+    bgAudio = document.createElement('audio');
+    bgAudio.src = config.audio[0];
+    bgAudio.loop = true;
+    bgAudio.preload = 'auto';
+    bgAudio.style.display = 'none';
+    document.body.appendChild(bgAudio);
+    
+    // 显示音频控制器
+    audioControls.classList.remove('hidden');
+    
+    // 添加音频控制按钮事件
+    audioToggle.addEventListener('click', function() {
+        if (audioPlaying) {
+            bgAudio.pause();
+            audioPlaying = false;
+            audioToggle.textContent = '🔇';
+        } else {
+            bgAudio.play().catch(err => {
+                console.error('Failed to play audio:', err);
+            });
+            audioPlaying = true;
+            audioToggle.textContent = '🔊';
+        }
+    });
+}
+
+// 用户交互标志
+let userInteracted = false;
+
+// 监听用户交互，开始播放音频
+function initAudioPlayback() {
+    if (bgAudio && !userInteracted) {
+        userInteracted = true;
+        
+        // 尝试播放音频
+        const playPromise = bgAudio.play();
+        
+        // 处理自动播放策略限制
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                audioPlaying = true;
+                audioToggle.textContent = '🔊';
+                console.log('Audio playback started');
+            }).catch(error => {
+                console.log('Auto-play prevented by browser:', error);
+                audioToggle.textContent = '🔇';
+                
+                // 如果自动播放失败，添加点击事件监听器
+                document.addEventListener('click', function audioClickHandler() {
+                    bgAudio.play().then(() => {
+                        audioPlaying = true;
+                        audioToggle.textContent = '🔊';
+                        console.log('Audio started after user interaction');
+                        document.removeEventListener('click', audioClickHandler);
+                    }).catch(err => {
+                        console.error('Failed to play audio after click:', err);
+                    });
+                }, { once: false });
+            });
+        }
+    }
+}
+
+// 添加页面交互事件监听器
+document.addEventListener('click', initAudioPlayback);
+document.addEventListener('touchstart', initAudioPlayback);
+
 if (config.title) {
     document.title = config.title;
 }
@@ -35,15 +109,36 @@ const app = document.getElementById('app');
             div.style.position = 'absolute';
             div.style.transform = 'translate(-50%, -50%)';
             div.style.zIndex = 2;
-            div.innerHTML = fingerSvg;
-            const svg = div.querySelector('svg');
-            svg.style.width = '100px';
-            svg.style.height = '100px';
-            svg.classList.add('hotspot-svg');
-            svg.querySelectorAll('path').forEach(path => {
-                path.setAttribute('fill', 'white');
-            });
-            svg.addEventListener('click', () => handleHotspot(spot));
+            
+            // 如果有热点图片，使用图片；否则使用默认SVG
+            if (spot.hotspotImage) {
+                const hotspotImg = document.createElement('img');
+                hotspotImg.src = images[spot.hotspotImage];
+                hotspotImg.className = 'hotspot-img';
+                hotspotImg.style.width = '100px';
+                hotspotImg.style.height = '100px';
+                hotspotImg.style.objectFit = 'contain';
+                hotspotImg.style.cursor = 'pointer';
+                
+                // 应用scale参数
+                const scale = spot.scale || 1.0;
+                hotspotImg.style.transform = `scale(${scale})`;
+                
+                hotspotImg.addEventListener('click', () => handleHotspot(spot));
+                div.appendChild(hotspotImg);
+            } else {
+                // 使用默认SVG
+                div.innerHTML = fingerSvg;
+                const svg = div.querySelector('svg');
+                svg.style.width = '100px';
+                svg.style.height = '100px';
+                svg.classList.add('hotspot-svg');
+                svg.querySelectorAll('path').forEach(path => {
+                    path.setAttribute('fill', 'white');
+                });
+                svg.addEventListener('click', () => handleHotspot(spot));
+            }
+            
             wrapper.appendChild(div);
         }
     });
@@ -65,21 +160,6 @@ setInterval(() => {
     });
 }, 1000);
 
-// 添加底部下载按钮
-function addDownloadButton() {
-    const btn = document.createElement('button');
-    btn.className = 'download-btn';
-    btn.innerText = config.download.text;
-    btn.onclick = function () {
-        if (window.mraid && typeof window.mraid.open === 'function') {
-            window.mraid.open(config.download.url);
-        } else {
-            window.open(config.download.url, '_blank');
-        }
-    };
-    document.body.appendChild(btn);
-}
-addDownloadButton();
 
 const modal = document.getElementById('modal');
 const modalImgs = document.getElementById('modal-imgs');
@@ -119,3 +199,7 @@ closeModal.onclick = () => {
 modal.onclick = (e) => {
     if (e.target === modal) modal.classList.add('hidden');
 };
+
+function ctaClick() {
+   window.location.href = config.download.url;
+}
