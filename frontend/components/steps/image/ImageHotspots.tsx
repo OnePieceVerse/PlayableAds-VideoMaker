@@ -53,6 +53,7 @@ interface Hotspot {
   useDefaultSvg?: boolean;
   isSaved?: boolean;
   scale?: number; // For default SVG scale
+  tempCounter?: number; // 临时计数器，用于取消时回退
 }
 
 interface ImageHotspotsProps {
@@ -151,6 +152,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
   // Add a new hotspot button
   const addNewHotspot = () => {
     const newId = `hotspot-${Date.now()}`;
+    const currentCounter = hotspotCounter;
     const newHotspot = {
       id: newId,
       x: 40,
@@ -158,7 +160,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       width: 20,
       height: 20,
       label: "",
-      title: `Hotspot ${hotspotCounter}`,
+      title: `Hotspot ${currentCounter}`,
       action: "url",
       url: "",
       popupContent: {
@@ -167,13 +169,14 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       },
       useDefaultSvg: true, // Default to using the SVG
       scale: 25, // Default scale for SVG hotspot (relative to container width)
-      isSaved: false
+      isSaved: false,
+      tempCounter: currentCounter // 临时保存计数器值，用于取消时回退
     };
 
     setHotspots(prev => [...prev, newHotspot]);
     setSelectedHotspot(newId);
     setIsEditing(true);
-    setHotspotTitle(`Hotspot ${hotspotCounter}`);
+    setHotspotTitle(`Hotspot ${currentCounter}`);
     setHotspotCounter(prev => prev + 1);
   };
 
@@ -243,7 +246,8 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
 
     const updates: Partial<Hotspot> = {
       isSaved: true,
-      title: title
+      title: title,
+      tempCounter: undefined // 清除临时计数器
     };
 
     updateHotspot(selectedHotspot, updates);
@@ -547,12 +551,22 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
   // Update form data when hotspots change
   useEffect(() => {
     if (!isDragging) {
+      // 只传递已保存的热点到formData
+      const savedHotspots = hotspots.filter(h => h.isSaved);
       const currentHotspots = formData.hotspots || [];
-      if (JSON.stringify(currentHotspots) !== JSON.stringify(hotspots)) {
-        updateFormData("hotspots", hotspots);
+      if (JSON.stringify(currentHotspots) !== JSON.stringify(savedHotspots)) {
+        updateFormData("hotspots", savedHotspots);
       }
     }
   }, [hotspots, formData.hotspots, updateFormData, isDragging]);
+
+  // 清理未保存的热点（在组件卸载或步骤切换时）
+  useEffect(() => {
+    return () => {
+      // 组件卸载时清理未保存的热点
+      setHotspots(prev => prev.filter(h => h.isSaved));
+    };
+  }, []);
 
   // Add toggle landscape mode function
   const toggleLandscapeMode = () => {
@@ -1078,9 +1092,23 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                   </button>
                   <button
                     onClick={() => {
+                      // 如果当前热点未保存，则删除它并回退计数器
+                      if (selectedHotspot) {
+                        const currentHotspot = getSelectedHotspot();
+                        if (currentHotspot && !currentHotspot.isSaved) {
+                          // 回退计数器到删除的热点的tempCounter
+                          if (currentHotspot.tempCounter !== undefined) {
+                            setHotspotCounter(currentHotspot.tempCounter);
+                          }
+                          setHotspots(prev => prev.filter(h => h.id !== selectedHotspot));
+                        }
+                      }
                       setSelectedHotspot(null);
                       setIsEditing(false);
                       setError(null);
+                      setHotspotTitle("");
+                      setUrlError(null);
+                      setTitleError(null);
                     }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
                   >
@@ -1169,13 +1197,37 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
 
       <div className="flex justify-between pt-6">
         <button
-          onClick={prevStep}
+          onClick={() => {
+            // 清理未保存的热点并回退计数器
+            const unsavedHotspots = hotspots.filter(h => !h.isSaved);
+            if (unsavedHotspots.length > 0) {
+              // 找到最小的tempCounter作为回退的计数器值
+              const minTempCounter = Math.min(...unsavedHotspots.map(h => h.tempCounter || hotspotCounter));
+              setHotspotCounter(minTempCounter);
+            }
+            setHotspots(prev => prev.filter(h => h.isSaved));
+            setSelectedHotspot(null);
+            setIsEditing(false);
+            prevStep();
+          }}
           className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
         >
           Back
         </button>
         <button
-          onClick={nextStep}
+          onClick={() => {
+            // 清理未保存的热点并回退计数器
+            const unsavedHotspots = hotspots.filter(h => !h.isSaved);
+            if (unsavedHotspots.length > 0) {
+              // 找到最小的tempCounter作为回退的计数器值
+              const minTempCounter = Math.min(...unsavedHotspots.map(h => h.tempCounter || hotspotCounter));
+              setHotspotCounter(minTempCounter);
+            }
+            setHotspots(prev => prev.filter(h => h.isSaved));
+            setSelectedHotspot(null);
+            setIsEditing(false);
+            nextStep();
+          }}
           className="px-6 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700"
         >
           {hotspots.filter(h => h.isSaved).length === 0 ? "Skip & Continue" : "Continue"}
