@@ -133,6 +133,13 @@ const app = document.getElementById('app');
             div.style.position = 'absolute';
             div.style.transform = 'translate(-50%, -50%)';
             div.style.zIndex = 2;
+            
+            // 获取scale值（百分比），相对于图片宽度
+            const scalePercent = spot.scale || 25;
+            console.log(`Hotspot ${spot.type} scale: ${scalePercent}%`);
+            
+            // 设置外层div的宽度为图片容器宽度的百分比
+            div.style.width = `${scalePercent}%`;
             div.style.display = 'flex';
             div.style.alignItems = 'center';
             div.style.justifyContent = 'center';
@@ -143,12 +150,8 @@ const app = document.getElementById('app');
                 hotspotImg.src = images[spot.hotspotImage];
                 hotspotImg.className = 'hotspot-img animate-hotspot-image';
                 
-                // 获取scale值（百分比）
-                const scalePercent = spot.scale || 20;
-                console.log(`Hotspot image ${spot.type} scale: ${scalePercent}%`);
-                
-                // 设置图片宽度为容器宽度的百分比
-                hotspotImg.style.width = `${scalePercent}%`;
+                // 图片填满外层div
+                hotspotImg.style.width = '100%';
                 hotspotImg.style.height = 'auto';
                 hotspotImg.style.objectFit = 'contain';
                 hotspotImg.style.cursor = 'pointer';
@@ -160,12 +163,9 @@ const app = document.getElementById('app');
                 div.innerHTML = fingerSvg;
                 const svg = div.querySelector('svg');
                 
-                // 获取scale值（百分比）
-                const scalePercent = spot.scale || 20;
-                
-                // 设置SVG大小为容器宽度的百分比
-                svg.style.width = `${scalePercent}%`;
-                svg.style.height = `${scalePercent}%`;
+                // SVG填满外层div
+                svg.style.width = '100%';
+                svg.style.height = '100%';
                 svg.classList.add('hotspot-svg');
                 svg.querySelectorAll('path').forEach(path => {
                     path.setAttribute('fill', 'white');

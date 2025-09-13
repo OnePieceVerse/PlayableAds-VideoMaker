@@ -265,14 +265,14 @@ const generateAd = async () => {
           console.log("Modal images:", modalImgs);
           
           return {
-            left: hotspot.x || 0,
-            top: hotspot.y || 0,
+            left: hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x || 0),
+            top: hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || hotspot.y || 0),
             type: hotspot.type || hotspot.action || "popup",
             url: hotspot.url,
             modalImgs: modalImgs,
             modalText: hotspot.popupContent?.title || hotspot.title || "",
             imgIndex: 0, // 只有一张主图，所以索引为0
-            scale: hotspot.scale || 1.0,
+            scale: hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 30),
             hotspotImage: hotspot.hotspotImage?.id || null
           };
         }) : [],

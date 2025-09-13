@@ -5,6 +5,21 @@ import { useLanguage } from "@/app/i18n/LanguageContext";
 import { API_PATHS, getFullUrl } from "@/config/api";
 import { useDropzone } from "react-dropzone";
 
+// Default SVG hotspot component
+const DefaultHotspotSvg = () => (
+  <svg 
+    className="w-full h-full text-white animate-pulse-scale" 
+    viewBox="0 0 1448 1024" 
+    xmlns="http://www.w3.org/2000/svg"
+    style={{ filter: 'drop-shadow(0px 0px 3px rgba(0, 0, 0, 0.5))' }}
+  >
+    <path 
+      d="M954.678313 549.757097l-211.405341-125.742315c-7.740635-4.644381-12.729044-1.032085-11.008903 7.740635l44.895682 243.227953c1.720141 8.944734 7.224593 10.148833 12.385016 2.752225 0 0 28.726356-41.111372 52.29229-66.225432l45.239711 67.257517c4.300353 6.364522 13.073072 8.084663 19.26558 3.784311l15.137242-10.492861c6.364522-4.300353 7.912649-13.245087 3.612296-19.609609l-45.239711-67.257517c30.274483-12.55703 72.933983-23.049891 72.933983-23.049891 8.77272-2.236183 9.63279-7.740635 1.892155-12.385016z m-246.668234 79.642533c-0.860071-0.344028-1.720141-0.516042-2.580212-0.516042-72.933983-17.029397-125.742315-84.1149-124.882244-161.349236 1.032085-90.307408 74.310096-162.897363 163.241391-162.037292 84.286914 1.032085 152.920544 67.601545 159.285066 151.200403v0.172015c0 0.860071 0 1.720141 0.172014 2.408197 0.860071 5.332437 4.644381 9.63279 9.460776 11.180917 0.860071 0.172014 1.720141 0.344028 2.408198 0.516043h2.580212c7.224593-0.516042 12.901058-6.536536 13.073072-13.933143v-0.172014c0-0.688056 0-1.204099-0.172014-1.892156-1.376113-20.297665-6.020494-39.907274-13.589115-58.656811-9.288762-23.049891-22.705863-43.691584-39.907273-61.409038-17.201411-17.889467-37.327062-31.82261-59.688897-41.799429-23.221905-10.320847-47.991937-15.653284-73.450025-15.997312-25.630102-0.344028-50.400134 4.472367-73.794053 14.277171-22.705863 9.460776-43.003528 23.049891-60.548967 40.423316-17.545439 17.373425-31.478582 37.843104-41.283387 60.548967-10.148833 23.565933-15.48127 48.679993-15.653284 74.654124-0.516042 46.959852 15.997312 92.543591 46.271796 127.978498 26.490173 30.790526 61.581052 52.29229 100.45624 61.409038 0.860071 0.344028 1.720141 0.516042 2.580212 0.516042 0.516042 0 1.032085 0.172014 1.548127 0.172014 7.740635 0.172014 14.105157-6.192508 14.105157-13.933143 0-6.536536-3.956325-11.868974-9.63279-13.761129z" 
+      fill="currentColor"
+    />
+  </svg>
+);
+
 interface PopupImage {
   id: string;
   url: string;
@@ -37,6 +52,7 @@ interface Hotspot {
   };
   useDefaultSvg?: boolean;
   isSaved?: boolean;
+  scale?: number; // For default SVG scale
 }
 
 interface ImageHotspotsProps {
@@ -71,6 +87,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const [showPopup, setShowPopup] = useState<Hotspot | null>(null);
   const [isLandscape, setIsLandscape] = useState(false); // Add landscape mode state
+  const [forceUpdate, setForceUpdate] = useState(0); // Force re-render for position updates
 
   // Removed audio-related code
 
@@ -111,7 +128,23 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
 
       updateImageSize();
       window.addEventListener("resize", updateImageSize);
-      return () => window.removeEventListener("resize", updateImageSize);
+      
+      // Force update when image loads to recalculate positions
+      const handleImageLoad = () => {
+        updateImageSize();
+        setForceUpdate(prev => prev + 1);
+      };
+      
+      if (imageRef.current) {
+        imageRef.current.addEventListener('load', handleImageLoad);
+      }
+      
+      return () => {
+        window.removeEventListener("resize", updateImageSize);
+        if (imageRef.current) {
+          imageRef.current.removeEventListener('load', handleImageLoad);
+        }
+      };
     }
   }, []);
 
@@ -133,6 +166,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
         images: []
       },
       useDefaultSvg: true, // Default to using the SVG
+      scale: 25, // Default scale for SVG hotspot (relative to container width)
       isSaved: false
     };
 
@@ -262,14 +296,16 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       }
 
       const data = await response.json();
+      console.log('Hotspot image upload response:', data);
 
+      const currentHotspot = getSelectedHotspot();
       const hotspotImage = {
-        id: `hotspot-image-${Date.now()}`,
+        id: data.file_id || `hotspot-image-${Date.now()}`,
         url: getFullUrl(data.url),
         name: file.name,
-        x: 40,
-        y: 40,
-        scale: 60
+        x: currentHotspot?.x || 40,
+        y: currentHotspot?.y || 40,
+        scale: 25
       };
 
       updateHotspot(selectedHotspot, { hotspotImage });
@@ -314,9 +350,10 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       }
 
       const data = await response.json();
+      console.log('Popup image upload response:', data);
 
       const popupImage = {
-        id: `popup-image-${Date.now()}`,
+        id: data.file_id || `popup-image-${Date.now()}`,
         url: getFullUrl(data.url),
         name: file.name
       };
@@ -448,16 +485,33 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
     setSelectedHotspot(hotspotId);
 
     const handleDragMove = (moveEvent: MouseEvent) => {
-      if (!rect) return;
+      if (!rect || !imageRef.current) return;
 
       const deltaX = moveEvent.clientX - initialClientX;
       const deltaY = moveEvent.clientY - initialClientY;
 
-      const deltaPercentX = (deltaX / rect.width) * 100;
-      const deltaPercentY = (deltaY / rect.height) * 100;
+      // Get current image dimensions and position
+      const imageRect = imageRef.current.getBoundingClientRect();
+      const imageWidth = imageRect.width;
+      const imageHeight = imageRect.height;
+      
+      // Calculate delta as percentage of image size (not container size)
+      const deltaPercentX = (deltaX / imageWidth) * 100;
+      const deltaPercentY = (deltaY / imageHeight) * 100;
 
       const newX = Math.max(0, Math.min(100, initialX + deltaPercentX));
       const newY = Math.max(0, Math.min(100, initialY + deltaPercentY));
+      
+      console.log('Frontend position debug:', { 
+        newX, newY, 
+        imageWidth, imageHeight,
+        deltaX, deltaY,
+        deltaPercentX, deltaPercentY,
+        initialX, initialY,
+        clientX: moveEvent.clientX,
+        clientY: moveEvent.clientY,
+        initialClientX, initialClientY
+      });
 
       setHotspots(prev => prev.map(h => 
         h.id === hotspotId ? 
@@ -481,6 +535,7 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
 
     const handleDragEnd = () => {
       setIsDragging(false);
+      setForceUpdate(prev => prev + 1); // Force re-render after drag
       document.removeEventListener('mousemove', handleDragMove);
       document.removeEventListener('mouseup', handleDragEnd);
     };
@@ -504,45 +559,33 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
     setIsLandscape(!isLandscape);
   };
 
-  // First, let's add a default SVG hotspot component
-const DefaultHotspotSvg = () => (
-  <svg 
-    className="w-full h-full text-white animate-pulse-scale" 
-    viewBox="0 0 1448 1024" 
-    xmlns="http://www.w3.org/2000/svg"
-    style={{ filter: 'drop-shadow(0px 0px 3px rgba(0, 0, 0, 0.5))' }}
-  >
-    <path 
-      d="M954.678313 549.757097l-211.405341-125.742315c-7.740635-4.644381-12.729044-1.032085-11.008903 7.740635l44.895682 243.227953c1.720141 8.944734 7.224593 10.148833 12.385016 2.752225 0 0 28.726356-41.111372 52.29229-66.225432l45.239711 67.257517c4.300353 6.364522 13.073072 8.084663 19.26558 3.784311l15.137242-10.492861c6.364522-4.300353 7.912649-13.245087 3.612296-19.609609l-45.239711-67.257517c30.274483-12.55703 72.933983-23.049891 72.933983-23.049891 8.77272-2.236183 9.63279-7.740635 1.892155-12.385016z m-246.668234 79.642533c-0.860071-0.344028-1.720141-0.516042-2.580212-0.516042-72.933983-17.029397-125.742315-84.1149-124.882244-161.349236 1.032085-90.307408 74.310096-162.897363 163.241391-162.037292 84.286914 1.032085 152.920544 67.601545 159.285066 151.200403v0.172015c0 0.860071 0 1.720141 0.172014 2.408197 0.860071 5.332437 4.644381 9.63279 9.460776 11.180917 0.860071 0.172014 1.720141 0.344028 2.408198 0.516043h2.580212c7.224593-0.516042 12.901058-6.536536 13.073072-13.933143v-0.172014c0-0.688056 0-1.204099-0.172014-1.892156-1.376113-20.297665-6.020494-39.907274-13.589115-58.656811-9.288762-23.049891-22.705863-43.691584-39.907273-61.409038-17.201411-17.889467-37.327062-31.82261-59.688897-41.799429-23.221905-10.320847-47.991937-15.653284-73.450025-15.997312-25.630102-0.344028-50.400134 4.472367-73.794053 14.277171-22.705863 9.460776-43.003528 23.049891-60.548967 40.423316-17.545439 17.373425-31.478582 37.843104-41.283387 60.548967-10.148833 23.565933-15.48127 48.679993-15.653284 74.654124-0.516042 46.959852 15.997312 92.543591 46.271796 127.978498 26.490173 30.790526 61.581052 52.29229 100.45624 61.409038 0.860071 0.344028 1.720141 0.516042 2.580212 0.516042 0.516042 0 1.032085 0.172014 1.548127 0.172014 7.740635 0.172014 14.105157-6.192508 14.105157-13.933143 0-6.536536-3.956325-11.868974-9.63279-13.761129z" 
-      fill="currentColor"
-    />
-  </svg>
-);
 
-  // Now let's modify the interface to include useDefaultSvg flag
-  interface Hotspot {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    label: string;
-    title: string;
-    action: string;
-    url: string;
-    popupContent?: PopupContent;
-    hotspotImage?: {
-      id: string;
-      url: string;
-      name: string;
-      x: number;
-      y: number;
-      scale: number;
-    };
-    useDefaultSvg?: boolean;
-    isSaved?: boolean;
-    scale?: number; // For default SVG scale
-  }
+  
+  // Helper function to convert image-relative position to container-relative position
+  const convertImageToContainerPosition = (imagePercent: number, isX: boolean) => {
+    if (!imageContainerRef.current || !imageRef.current) return imagePercent;
+    
+    const containerRect = imageContainerRef.current.getBoundingClientRect();
+    const imageRect = imageRef.current.getBoundingClientRect();
+    
+    if (isX) {
+      // Calculate horizontal offset and scale
+      const imageLeft = imageRect.left - containerRect.left;
+      const imageWidth = imageRect.width;
+      const containerWidth = containerRect.width;
+      
+      // Convert image percentage to container percentage
+      return ((imageLeft + (imagePercent / 100) * imageWidth) / containerWidth) * 100;
+    } else {
+      // Calculate vertical offset and scale
+      const imageTop = imageRect.top - containerRect.top;
+      const imageHeight = imageRect.height;
+      const containerHeight = containerRect.height;
+      
+      // Convert image percentage to container percentage
+      return ((imageTop + (imagePercent / 100) * imageHeight) / containerHeight) * 100;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -578,7 +621,7 @@ const DefaultHotspotSvg = () => (
             ref={imageContainerRef}
             className={`bg-black rounded-lg overflow-hidden relative transition-all duration-300 ${
               isLandscape 
-                ? "aspect-video max-w-[600px] mx-auto flex items-center justify-center" 
+                ? "aspect-video max-w-[600px] mx-auto" 
                 : "aspect-[9/16] max-w-[400px] mx-auto"
             }`}
           >
@@ -628,30 +671,57 @@ const DefaultHotspotSvg = () => (
                 )}
                 {hotspots
                   .filter(hotspot => hotspot.hotspotImage || hotspot.useDefaultSvg)
-                  .map((hotspot) => (
-                    <div
-                      key={hotspot.id}
-                      className={`absolute cursor-move select-none ${isDragging && selectedHotspot === hotspot.id ? 'z-10' : ''}`}
-                      style={{
-                        left: `${hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x)}%`,
-                        top: `${hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || hotspot.y)}%`,
-                        transform: 'translate(-50%, -50%)',
-                      }}
-                      onMouseDown={(e) => handleHotspotImageMouseDown(e, hotspot.id)}
-                    >
-                      <div 
+                  .map((hotspot) => {
+                    // Use forceUpdate to trigger re-calculation when needed
+                    forceUpdate;
+                    // Calculate position relative to the actual image
+                    const imageRect = imageRef.current?.getBoundingClientRect();
+                    const containerRect = imageContainerRef.current?.getBoundingClientRect();
+                    
+                    let adjustedLeft = hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x);
+                    let adjustedTop = hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || hotspot.y);
+                    
+                    // If image dimensions are available, calculate relative positioning
+                    if (imageRect && containerRect) {
+                      const imageOffsetX = (imageRect.left - containerRect.left) / containerRect.width * 100;
+                      const imageOffsetY = (imageRect.top - containerRect.top) / containerRect.height * 100;
+                      const imageWidthPercent = imageRect.width / containerRect.width * 100;
+                      const imageHeightPercent = imageRect.height / containerRect.height * 100;
+                      
+                      // Convert hotspot position from image-relative to container-relative
+                      adjustedLeft = imageOffsetX + (adjustedLeft / 100) * imageWidthPercent;
+                      adjustedTop = imageOffsetY + (adjustedTop / 100) * imageHeightPercent;
+                    }
+                    
+                    const hotspotScale = hotspot.useDefaultSvg ? (hotspot.scale ?? 25) : (hotspot.hotspotImage?.scale ?? 25);
+                    
+                    // Scale is relative to image width (like main.js)
+                    // Calculate actual scale as percentage of container width
+                    let actualScale = hotspotScale;
+                    if (imageRect && containerRect) {
+                      // Get the image's width as a percentage of container width
+                      const imageWidthPercent = (imageRect.width / containerRect.width) * 100;
+                      // Scale relative to image width, expressed as container percentage
+                      actualScale = (hotspotScale / 100) * imageWidthPercent;
+                    }
+                    const scaleWidth = `${actualScale}%`;
+                    
+                    
+                    return (
+                      <div
+                        key={hotspot.id}
+                        className={`absolute cursor-move select-none ${isDragging && selectedHotspot === hotspot.id ? 'z-10' : ''}`}
                         style={{
-                          width: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
-                          height: `${hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60)}px`,
+                          left: `${adjustedLeft}%`,
+                          top: `${adjustedTop}%`,
+                          transform: 'translate(-50%, -50%)',
+                          width: scaleWidth,
+                          // 不设置height，让图片保持原始宽高比
                         }}
-                        className="animate-hotspot-pulse rounded-full"
+                        onMouseDown={(e) => handleHotspotImageMouseDown(e, hotspot.id)}
                       >
                         {hotspot.useDefaultSvg ? (
-                          <div 
-                            className="w-full h-full overflow-hidden animate-pulse-scale"
-                          >
-                            <DefaultHotspotSvg />
-                          </div>
+                          <DefaultHotspotSvg />
                         ) : (
                           <img
                             src={hotspot.hotspotImage!.url}
@@ -661,8 +731,8 @@ const DefaultHotspotSvg = () => (
                           />
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </>
             ) : (
               <div className="bg-gray-200 w-full h-full flex items-center justify-center">
@@ -803,7 +873,7 @@ const DefaultHotspotSvg = () => (
                       type="range"
                       min="0"
                       max="100"
-                      value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.x || 40) : (getSelectedHotspot()?.hotspotImage?.x || 40)}
+                      value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.x ?? 40) : (getSelectedHotspot()?.hotspotImage?.x ?? 40)}
                       onChange={(e) => {
                         const currentHotspot = getSelectedHotspot();
                         const newX = parseInt(e.target.value);
@@ -811,19 +881,20 @@ const DefaultHotspotSvg = () => (
                           updateHotspot(selectedHotspot, {
                             x: newX
                           });
-                        updateHotspot(selectedHotspot, {
-                          hotspotImage: currentHotspot.hotspotImage ? {
-                            ...currentHotspot.hotspotImage,
-                            x: newX
-                          } : undefined
-                        });
-                      }
-                    }
-                  }
+                        } else if (currentHotspot?.hotspotImage) {
+                          updateHotspot(selectedHotspot, {
+                            hotspotImage: {
+                              ...currentHotspot.hotspotImage,
+                              x: newX
+                            }
+                          });
+                        }
+                        setForceUpdate(prev => prev + 1);
+                      }}
                     className="w-full"
                     />
                     <div className="text-xs text-gray-500 mt-1">
-                      {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 20) : (getSelectedHotspot()?.hotspotImage?.scale || 20)}%
+                      {Math.round(getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.x ?? 40) : (getSelectedHotspot()?.hotspotImage?.x ?? 40))}%
                     </div>
                   </div>
                   <div>
@@ -834,7 +905,7 @@ const DefaultHotspotSvg = () => (
                       type="range"
                       min="0"
                       max="100"
-                      value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.y || 40) : (getSelectedHotspot()?.hotspotImage?.y || 40)}
+                      value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.y ?? 40) : (getSelectedHotspot()?.hotspotImage?.y ?? 40)}
                       onChange={(e) => {
                         const currentHotspot = getSelectedHotspot();
                         const newY = parseInt(e.target.value);
@@ -842,19 +913,20 @@ const DefaultHotspotSvg = () => (
                           updateHotspot(selectedHotspot, {
                             y: newY
                           });
-                        updateHotspot(selectedHotspot, {
-                          hotspotImage: currentHotspot.hotspotImage ? {
-                            ...currentHotspot.hotspotImage,
-                            y: newY
-                          } : undefined
-                        });
-                      }
-                    }
-                  }
+                        } else if (currentHotspot?.hotspotImage) {
+                          updateHotspot(selectedHotspot, {
+                            hotspotImage: {
+                              ...currentHotspot.hotspotImage,
+                              y: newY
+                            }
+                          });
+                        }
+                        setForceUpdate(prev => prev + 1);
+                      }}
                     className="w-full"
                     />
                     <div className="text-xs text-gray-500 mt-1">
-                      {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.y || 40) : (getSelectedHotspot()?.hotspotImage?.y || 40)}%
+                      {Math.round(getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.y ?? 40) : (getSelectedHotspot()?.hotspotImage?.y ?? 40))}%
                     </div>
                   </div>
                 </div>
@@ -865,15 +937,13 @@ const DefaultHotspotSvg = () => (
                   </label>
                   <input
                     type="range"
-                    min="0"
+                    min="1"
                     max="100"
-                    value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 20) : (getSelectedHotspot()?.hotspotImage?.scale || 20)}
+                    value={getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale ?? 25) : (getSelectedHotspot()?.hotspotImage?.scale ?? 25)}
                     onChange={(e) => {
                       const currentHotspot = getSelectedHotspot();
                       const newScale = parseInt(e.target.value);
                       if (currentHotspot?.useDefaultSvg) {
-                        // For default SVG, we only update the scale visually
-                        // We can store it in a separate field if needed
                         updateHotspot(selectedHotspot, {
                           scale: newScale
                         });
@@ -882,17 +952,15 @@ const DefaultHotspotSvg = () => (
                           hotspotImage: {
                             ...currentHotspot.hotspotImage,
                             scale: newScale
-                          },
-                          // 同时更新热点根级别的scale
-                          scale: newScale
+                          }
                         });
                       }
-                    }
-                  }
+                      setForceUpdate(prev => prev + 1); // Force re-render when scale changes
+                    }}
                     className="w-full"
                   />
                   <div className="text-xs text-gray-500 mt-1">
-                    {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale || 20) : (getSelectedHotspot()?.hotspotImage?.scale || 20)}%
+                    {getSelectedHotspot()?.useDefaultSvg ? (getSelectedHotspot()?.scale ?? 25) : (getSelectedHotspot()?.hotspotImage?.scale ?? 25)}%
                   </div>
                 </div>
 
@@ -1048,7 +1116,7 @@ const DefaultHotspotSvg = () => (
                               <div className="flex flex-wrap gap-x-4 gap-y-1">
                                 <span>Left: {Math.round(hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || 0))}%</span>
                                 <span>Top: {Math.round(hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || 0))}%</span>
-                                <span>Scale: {Math.round(hotspot.useDefaultSvg ? (hotspot.scale || 60) : (hotspot.hotspotImage?.scale || 60))}%</span>
+                                <span>Scale: {Math.round(hotspot.useDefaultSvg ? (hotspot.scale ?? 25) : (hotspot.hotspotImage?.scale ?? 25))}%</span>
                                 <span>{hotspot.action === 'url' ? `URL: ${hotspot.url}` : `Popup: ${hotspot.popupContent?.title || 'Untitled'}`}</span>
                               </div>
                             </div>
