@@ -53,7 +53,7 @@ export default function LanguageSwitcher() {
       <button
         onClick={toggleDropdown}
         className="flex items-center space-x-2 py-2 px-3 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-        aria-label="选择语言"
+        aria-label="Select Language"
       >
         <span className="text-lg">{languageOptions[locale].flag}</span>
         <span className="text-sm font-medium text-gray-700">{languageOptions[locale].name}</span>

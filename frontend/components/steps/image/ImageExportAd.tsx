@@ -336,36 +336,20 @@ const generateAd = async () => {
 
   const downloadAd = () => {
     try {
-      // 检查是否是ZIP文件（多平台）
-      if (result?.file_url && result.file_url.includes(".zip")) {
-        // 对于ZIP文件，使用项目ID和文件名
-        const fileName = result.file_url.split("/").pop();
-        // 构建下载URL - 使用API_PATHS.download来确保路径正确
-        const downloadUrl = API_PATHS.download(formData.project_id, fileName || '');
+      if (result?.file_url) {
+        // 直接使用file_url，它已经是完整的下载路径
+        const downloadUrl = result.file_url;
+        const fileName = downloadUrl.split("/").pop();
         
         // 创建隐藏的下载链接并触发点击
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.setAttribute('download', fileName || 'download.zip');
+        link.setAttribute('download', fileName || 'download');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       } else {
-        // 对于单个HTML文件，使用原来的逻辑
-        // 确保使用file_url而不是preview_url
-        const originalPath = result?.file_url || "";
-        const fileName = originalPath.split("/").pop();
-        
-        // 构建下载URL - 使用API_PATHS.download来确保路径正确
-        const downloadUrl = API_PATHS.download(formData.project_id, fileName || '');
-        
-        // 创建隐藏的下载链接并触发点击
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.setAttribute('download', fileName || 'download.html');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        setErrorMessage("No download URL available");
       }
     } catch (e) {
       console.error("Error downloading ad:", e);
@@ -418,9 +402,13 @@ const generateAd = async () => {
           <div
             className={`bg-black rounded-lg overflow-hidden transition-all duration-300 ${
               isLandscape 
-                ? "aspect-video max-w-[600px] mx-auto flex items-center justify-center" 
+                ? "w-full max-w-[800px] mx-auto flex items-center justify-center" 
                 : "aspect-[9/16] max-w-[400px] mx-auto"
             }`}
+            style={isLandscape ? {
+              aspectRatio: '16/9',
+              height: 'auto'
+            } : {}}
           >
             {result && (result.previewUrl || result.preview_url) ? (
               <React.Fragment>
@@ -428,12 +416,13 @@ const generateAd = async () => {
                   ref={iframeRef}
                   key={`preview-iframe-${refreshKey}`}
                   src={result.previewUrl || getFullUrl(result.preview_url)}
-                  className={`border-0 ${isLandscape ? "w-full h-full max-w-none max-h-full" : "w-full h-full transform rotate-0"}`}
+                  className={`border-0 ${
+                    isLandscape 
+                      ? "aspect-[9/16] h-full max-h-full" 
+                      : "w-full h-full"
+                  }`}
                   title="Playable Ad Preview"
                   sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"
-                  style={{
-                    transform: isLandscape ? "rotate(0deg)" : "rotate(0deg)",
-                  }}
                 />
               </React.Fragment>
             ) : generating ? (

@@ -97,7 +97,7 @@ class VideoOrientation(str, Enum):
     LANDSCAPE = "landscape"
 
 
-class GenerateRequest(BaseModel):
+class VideoGenerateRequest(BaseModel):
     video_id: str
     project_id: str
     pause_frames: List[PauseFrame] = []
@@ -127,8 +127,9 @@ class Hotspot(BaseModel):
     imgIndex: int  # Index of the image this hotspot belongs to
     scale: Optional[float] = 1.0  # Scale factor for hotspot image
     hotspotImage: Optional[str] = None  # ID of the hotspot custom image
+    useDefaultSvg: Optional[bool] = False  # Whether to use default SVG or custom image
 
-class ImageGenerateRequest(BaseModel):
+class ImageVideoGenerateRequest(BaseModel):
     project_id: str
     images: List[str]  # List of image IDs
     hotspots: List[Hotspot] = []
@@ -138,4 +139,5 @@ class ImageGenerateRequest(BaseModel):
     language: Language = Language.ENGLISH
     version: str = "v1"
     app_name: str = "PlayableAds"
-    orientation: VideoOrientation = VideoOrientation.PORTRAIT  # Reusing VideoOrientation enum 
+    orientation: VideoOrientation = VideoOrientation.PORTRAIT  # Reusing VideoOrientation enum
+    single_file_mode: bool = False  # 控制是否生成images.js文件 

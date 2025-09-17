@@ -88,7 +88,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     const videoHeight = formData.video?.metadata?.height || videoElement.videoHeight;
     
     if (videoWidth && videoHeight) {
-      console.log('使用视频原始宽高:', videoWidth, videoHeight);
+      console.log('Using video original dimensions:', videoWidth, videoHeight);
       
       // 计算视频在容器中的实际显示区域
       const containerAspect = containerRect.width / containerRect.height;
@@ -137,7 +137,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
         
         // 打印视频的实际宽高
         if (videoRef.current) {
-          console.log('视频元素实际宽高:', {
+          console.log('Video element actual dimensions:', {
             videoWidth: videoRef.current.videoWidth,
             videoHeight: videoRef.current.videoHeight,
             displayWidth: rect.width,
@@ -155,7 +155,7 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       
       // 视频元数据加载完成时打印宽高
       if (videoRef.current) {
-        console.log('视频元数据加载完成:', {
+        console.log('Video metadata loaded:', {
           videoWidth: videoRef.current.videoWidth,
           videoHeight: videoRef.current.videoHeight,
           duration: videoRef.current.duration

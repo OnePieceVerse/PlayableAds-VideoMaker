@@ -151,7 +151,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
         
         // 打印视频的实际宽高
         if (videoRef.current) {
-          console.log('PauseFrames - 视频元素实际宽高:', {
+          console.log('PauseFrames - Video element actual dimensions:', {
             videoWidth: videoRef.current.videoWidth,
             videoHeight: videoRef.current.videoHeight,
             displayWidth: rect.width,
@@ -169,7 +169,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       
       // 视频元数据加载完成时打印宽高
       if (videoRef.current) {
-        console.log('PauseFrames - 视频元数据加载完成:', {
+        console.log('PauseFrames - Video metadata loaded:', {
           videoWidth: videoRef.current.videoWidth,
           videoHeight: videoRef.current.videoHeight,
           duration: videoRef.current.duration

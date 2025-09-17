@@ -6,8 +6,8 @@ import { LanguageProvider } from "./i18n/LanguageContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "试玩广告制作工具 | Playable Ads Maker",
-  description: "创建交互式试玩广告，支持多平台 | Create interactive playable ads for multiple platforms",
+  title: "Playable Ads Maker | 试玩广告制作工具",
+  description: "Create interactive playable ads for multiple platforms | 创建交互式试玩广告，支持多平台",
   alternates: {
     languages: {
       'zh-CN': '/zh',
@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="zh">
+    <html lang="en">
       <body className={inter.className} suppressHydrationWarning>
         <LanguageProvider>
           <div className="min-h-screen bg-gray-50">

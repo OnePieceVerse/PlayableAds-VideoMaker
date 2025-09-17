@@ -13,7 +13,10 @@ const audioOffSvg = `
 </svg>`;
 
 const config = window.PLAYABLE_CONFIG;
-const images = window.PLAYABLE_IMAGES;
+
+// 图片数据直接来自config中的路径（可能是相对路径或base64）
+// 在单文件模式下，config中的图片路径已经是base64格式
+// 在预览模式下，config中的图片路径是相对路径，浏览器可以直接加载
 
 // 创建背景音乐元素
 let bgAudio = null;
@@ -107,7 +110,7 @@ const app = document.getElementById('app');
 
     // 创建图片
     const img = document.createElement('img');
-    img.src = images[src]; // 取 base64 data URIsrc;
+    img.src = src; // 直接使用配置中的路径（可能是相对路径或base64）
     img.className = 'app-img';
     img.style.width = '100%';
     img.style.maxWidth = '100%';
@@ -147,7 +150,7 @@ const app = document.getElementById('app');
             // 如果有热点图片，使用图片；否则使用默认SVG
             if (spot.hotspotImage) {
                 const hotspotImg = document.createElement('img');
-                hotspotImg.src = images[spot.hotspotImage];
+                hotspotImg.src = spot.hotspotImage;
                 hotspotImg.className = 'hotspot-img animate-hotspot-image';
                 
                 // 图片填满外层div
@@ -199,14 +202,9 @@ if (config.cta_buttons && config.cta_buttons.length > 0) {
     
     config.cta_buttons.forEach((button, index) => {
         // 检查按钮图片是否存在
-        if (!images[button.image]) {
-            console.error(`CTA button ${index} image not found:`, button.image);
-            return; // 跳过这个按钮
-        }
-        
         // 创建CTA按钮
         const ctaButton = document.createElement('img');
-        ctaButton.src = images[button.image];
+        ctaButton.src = button.image;
         ctaButton.className = 'cta-button';
         ctaButton.id = `cta-button-${index}`;
         ctaButton.style.left = button.position.left;
@@ -261,7 +259,7 @@ if (config.cta_buttons && config.cta_buttons.length > 0) {
         
         // 添加调试信息
         console.log(`Added CTA button ${index}:`, button);
-        console.log(`CTA button ${index} image:`, images[button.image] ? 'loaded' : 'not found');
+        console.log(`CTA button ${index} image:`, button.image);
         console.log(`CTA button ${index} position:`, button.position);
     });
 } else {
@@ -349,25 +347,23 @@ function showModal(spot) {
     // 渲染所有图片
     if (spot.modalImgs && spot.modalImgs.length > 0) {
         spot.modalImgs.forEach((imgId, index) => {
-            if (images[imgId]) {
-                const img = document.createElement('img');
-                img.src = images[imgId];
-                img.className = 'modal-img';
-                img.style.animationDelay = `${index * 0.1}s`; // 添加延迟，使图片依次显示
-                
-                // 添加点击事件，点击放大/缩小图片
-                img.addEventListener('click', function() {
-                    if (this.classList.contains('enlarged')) {
-                        this.classList.remove('enlarged');
-                        this.style.transform = '';
-                    } else {
-                        this.classList.add('enlarged');
-                        this.style.transform = 'scale(1.2)';
-                    }
-                });
-                
-                modalImgs.appendChild(img);
-            }
+            const img = document.createElement('img');
+            img.src = imgId;
+            img.className = 'modal-img';
+            img.style.animationDelay = `${index * 0.1}s`; // 添加延迟，使图片依次显示
+            
+            // 添加点击事件，点击放大/缩小图片
+            img.addEventListener('click', function() {
+                if (this.classList.contains('enlarged')) {
+                    this.classList.remove('enlarged');
+                    this.style.transform = '';
+                } else {
+                    this.classList.add('enlarged');
+                    this.style.transform = 'scale(1.2)';
+                }
+            });
+            
+            modalImgs.appendChild(img);
         });
     }
     

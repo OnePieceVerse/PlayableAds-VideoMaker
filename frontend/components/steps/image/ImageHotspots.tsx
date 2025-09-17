@@ -289,6 +289,11 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       uploadFormData.append("file", file);
       uploadFormData.append("type", "image");
       uploadFormData.append("step", "image_upload");
+      
+      // 使用第一步创建的project_id
+      if (formData.project_id) {
+        uploadFormData.append("project_id", formData.project_id);
+      }
 
       const response = await fetch(API_PATHS.upload, {
         method: "POST",
@@ -343,6 +348,11 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       uploadFormData.append("file", file);
       uploadFormData.append("type", "image");
       uploadFormData.append("step", "image_upload");
+      
+      // 使用第一步创建的project_id
+      if (formData.project_id) {
+        uploadFormData.append("project_id", formData.project_id);
+      }
 
       const response = await fetch(API_PATHS.upload, {
         method: "POST",
@@ -489,26 +499,47 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
     setSelectedHotspot(hotspotId);
 
     const handleDragMove = (moveEvent: MouseEvent) => {
-      if (!rect || !imageRef.current) return;
+      if (!rect || !imageRef.current || !imageContainerRef.current) return;
 
       const deltaX = moveEvent.clientX - initialClientX;
       const deltaY = moveEvent.clientY - initialClientY;
 
-      // Get current image dimensions and position
-      const imageRect = imageRef.current.getBoundingClientRect();
-      const imageWidth = imageRect.width;
-      const imageHeight = imageRect.height;
+      const imageElement = imageRef.current;
+      const containerElement = imageContainerRef.current;
+      const containerRect = containerElement.getBoundingClientRect();
       
-      // Calculate delta as percentage of image size (not container size)
-      const deltaPercentX = (deltaX / imageWidth) * 100;
-      const deltaPercentY = (deltaY / imageHeight) * 100;
+      // Get the natural image dimensions
+      const naturalWidth = imageElement.naturalWidth;
+      const naturalHeight = imageElement.naturalHeight;
+      
+      if (!naturalWidth || !naturalHeight) return;
+      
+      // Calculate the actual displayed image size within the container (object-contain behavior)
+      const containerAspectRatio = containerRect.width / containerRect.height;
+      const imageAspectRatio = naturalWidth / naturalHeight;
+      
+      let displayedImageWidth, displayedImageHeight;
+      
+      if (imageAspectRatio > containerAspectRatio) {
+        // Image is wider than container - width constrained
+        displayedImageWidth = containerRect.width;
+        displayedImageHeight = containerRect.width / imageAspectRatio;
+      } else {
+        // Image is taller than container - height constrained
+        displayedImageWidth = containerRect.height * imageAspectRatio;
+        displayedImageHeight = containerRect.height;
+      }
+      
+      // Calculate delta as percentage of the displayed image size
+      const deltaPercentX = (deltaX / displayedImageWidth) * 100;
+      const deltaPercentY = (deltaY / displayedImageHeight) * 100;
 
       const newX = Math.max(0, Math.min(100, initialX + deltaPercentX));
       const newY = Math.max(0, Math.min(100, initialY + deltaPercentY));
       
       console.log('Frontend position debug:', { 
         newX, newY, 
-        imageWidth, imageHeight,
+        displayedImageWidth, displayedImageHeight,
         deltaX, deltaY,
         deltaPercentX, deltaPercentY,
         initialX, initialY,
@@ -688,35 +719,74 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
                   .map((hotspot) => {
                     // Use forceUpdate to trigger re-calculation when needed
                     forceUpdate;
-                    // Calculate position relative to the actual image
-                    const imageRect = imageRef.current?.getBoundingClientRect();
-                    const containerRect = imageContainerRef.current?.getBoundingClientRect();
+                    
+                    const imageElement = imageRef.current;
+                    const containerElement = imageContainerRef.current;
                     
                     let adjustedLeft = hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x);
                     let adjustedTop = hotspot.useDefaultSvg ? hotspot.y : (hotspot.hotspotImage?.y || hotspot.y);
                     
-                    // If image dimensions are available, calculate relative positioning
-                    if (imageRect && containerRect) {
-                      const imageOffsetX = (imageRect.left - containerRect.left) / containerRect.width * 100;
-                      const imageOffsetY = (imageRect.top - containerRect.top) / containerRect.height * 100;
-                      const imageWidthPercent = imageRect.width / containerRect.width * 100;
-                      const imageHeightPercent = imageRect.height / containerRect.height * 100;
+                    // Calculate position relative to the actual displayed image area (considering object-contain)
+                    if (imageElement && containerElement) {
+                      const imageRect = imageElement.getBoundingClientRect();
+                      const containerRect = containerElement.getBoundingClientRect();
                       
-                      // Convert hotspot position from image-relative to container-relative
-                      adjustedLeft = imageOffsetX + (adjustedLeft / 100) * imageWidthPercent;
-                      adjustedTop = imageOffsetY + (adjustedTop / 100) * imageHeightPercent;
+                      // Get the natural image dimensions
+                      const naturalWidth = imageElement.naturalWidth;
+                      const naturalHeight = imageElement.naturalHeight;
+                      
+                      if (naturalWidth && naturalHeight) {
+                        // Calculate the actual displayed image size within the container (object-contain behavior)
+                        const containerAspectRatio = containerRect.width / containerRect.height;
+                        const imageAspectRatio = naturalWidth / naturalHeight;
+                        
+                        let displayedImageWidth, displayedImageHeight;
+                        let imageOffsetX, imageOffsetY;
+                        
+                        if (imageAspectRatio > containerAspectRatio) {
+                          // Image is wider than container - width constrained
+                          displayedImageWidth = containerRect.width;
+                          displayedImageHeight = containerRect.width / imageAspectRatio;
+                          imageOffsetX = 0;
+                          imageOffsetY = (containerRect.height - displayedImageHeight) / 2;
+                        } else {
+                          // Image is taller than container - height constrained
+                          displayedImageWidth = containerRect.height * imageAspectRatio;
+                          displayedImageHeight = containerRect.height;
+                          imageOffsetX = (containerRect.width - displayedImageWidth) / 2;
+                          imageOffsetY = 0;
+                        }
+                        
+                        // Convert hotspot position from image percentage to container percentage
+                        adjustedLeft = (imageOffsetX + (adjustedLeft / 100) * displayedImageWidth) / containerRect.width * 100;
+                        adjustedTop = (imageOffsetY + (adjustedTop / 100) * displayedImageHeight) / containerRect.height * 100;
+                      }
                     }
                     
                     const hotspotScale = hotspot.useDefaultSvg ? (hotspot.scale ?? 25) : (hotspot.hotspotImage?.scale ?? 25);
                     
-                    // Scale is relative to image width (like main.js)
-                    // Calculate actual scale as percentage of container width
+                    // Calculate actual scale as percentage of container width, but relative to the displayed image
                     let actualScale = hotspotScale;
-                    if (imageRect && containerRect) {
-                      // Get the image's width as a percentage of container width
-                      const imageWidthPercent = (imageRect.width / containerRect.width) * 100;
-                      // Scale relative to image width, expressed as container percentage
-                      actualScale = (hotspotScale / 100) * imageWidthPercent;
+                    if (imageElement && containerElement) {
+                      const imageRect = imageElement.getBoundingClientRect();
+                      const containerRect = containerElement.getBoundingClientRect();
+                      const naturalWidth = imageElement.naturalWidth;
+                      const naturalHeight = imageElement.naturalHeight;
+                      
+                      if (naturalWidth && naturalHeight) {
+                        const containerAspectRatio = containerRect.width / containerRect.height;
+                        const imageAspectRatio = naturalWidth / naturalHeight;
+                        
+                        let displayedImageWidth;
+                        if (imageAspectRatio > containerAspectRatio) {
+                          displayedImageWidth = containerRect.width;
+                        } else {
+                          displayedImageWidth = containerRect.height * imageAspectRatio;
+                        }
+                        
+                        // Scale relative to displayed image width, expressed as container percentage
+                        actualScale = (hotspotScale / 100) * (displayedImageWidth / containerRect.width) * 100;
+                      }
                     }
                     const scaleWidth = `${actualScale}%`;
                     

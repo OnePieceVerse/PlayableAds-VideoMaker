@@ -22,14 +22,16 @@ export default config;
 
 // 常用API路径
 export const API_PATHS = {
-  upload: `${config.apiUrl}/upload`,
-  generate: `${config.apiUrl}/generate`,
-  generateImage: `${config.apiUrl}/generate-image`,
-  download: (projectId: string, fileName: string) => `${config.apiUrl}/download/${projectId}/${fileName}`,
-  downloadFile: (filePath: string) => `${config.apiUrl}/download-file?file_path=${encodeURIComponent(filePath.replace(/^\//, ""))}`,
-  projectFilesInfo: (projectId: string) => `${config.apiUrl}/project-files-info?project_id=${projectId}`,
-  systemAudio: `${config.apiUrl}/system-audio`,
-  systemAudioFile: (filename: string) => `${config.apiUrl}/system-audio/${filename}`,
+  upload: `${config.apiUrl}/file/upload`,
+  generate: `${config.apiUrl}/generate/video`,
+  generateImage: `${config.apiUrl}/generate/image`,
+  download: (projectId: string, fileName: string) => `${config.apiUrl}/file/download/${projectId}/${fileName}`,
+  downloadFile: (filePath: string) => `${config.apiUrl}/file/download-file?file_path=${encodeURIComponent(filePath.replace(/^\//, ""))}`,
+  projectFilesInfo: (projectId: string) => `${config.apiUrl}/platform/project-files-info?project_id=${projectId}`,
+  systemAudio: `${config.apiUrl}/file/system-audio`,
+  systemAudioFile: (filename: string) => `${config.apiUrl}/file/system-audio/${filename}`,
+  // 媒体文件访问路径
+  media: (projectId: string, filePath: string) => `${config.apiUrl}/file/media/${projectId}/${filePath}`,
 };
 
 // 获取完整URL（用于资源访问）

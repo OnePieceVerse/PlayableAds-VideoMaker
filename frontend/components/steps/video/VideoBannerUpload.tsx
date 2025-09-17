@@ -213,7 +213,7 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
     e.preventDefault();
     e.stopPropagation();
     
-    console.log(`开始拖动 ${bannerType} banner`);
+    console.log(`Starting to drag ${bannerType} banner`);
     
     // 记录初始点击位置
     const initialClientX = e.clientX;
@@ -223,7 +223,7 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
     const initialLeft = formData.banners[bannerType]?.position?.left || 0;
     const initialTop = formData.banners[bannerType]?.position?.top || 0;
     
-    console.log(`初始位置: left=${initialLeft}, top=${initialTop}`);
+    console.log(`Initial position: left=${initialLeft}, top=${initialTop}`);
     
     // 立即设置状态
     setIsDraggingBanner(true);
@@ -237,12 +237,12 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       // 获取视频容器
       const container = document.getElementById('video-container');
       if (!container) {
-        console.error('找不到视频容器元素');
+        console.error('Video container element not found');
         return;
       }
       
       const rect = container.getBoundingClientRect();
-      console.log(`容器尺寸: width=${rect.width}, height=${rect.height}`);
+      console.log(`Container size: width=${rect.width}, height=${rect.height}`);
       
       // 计算鼠标移动距离（像素）
       const deltaX = moveEvent.clientX - initialClientX;
@@ -260,7 +260,7 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       const clampedX = Math.max(0, Math.min(100, newLeft));
       const clampedY = Math.max(0, Math.min(100, newTop));
       
-      console.log(`移动到: left=${clampedX.toFixed(2)}, top=${clampedY.toFixed(2)}`);
+      console.log(`Moved to: left=${clampedX.toFixed(2)}, top=${clampedY.toFixed(2)}`);
       
       // 更新 Banner 位置
       const updatedBanners = { ...formData.banners };
@@ -269,13 +269,13 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
           ...updatedBanners[bannerType]!,
           position: { left: clampedX, top: clampedY }
         };
-        console.log('更新banners:', updatedBanners);
+        console.log('Updated banners:', updatedBanners);
         updateFormData("banners", updatedBanners);
       }
     };
     
     const handleMouseUp = () => {
-      console.log('拖动结束');
+      console.log('Drag ended');
       setIsDraggingBanner(false);
       setDraggingBannerType(null);
       document.removeEventListener('mousemove', handleMouseMove);
