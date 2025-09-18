@@ -110,31 +110,25 @@ async def generate_image_ad(
     - **project_id**: 项目ID（可选，如果提供则使用已存在的项目目录）
     """
     try:
-        logger.info(f"Received generate image request with project_id: {project_id}")
-        
         # 处理project_id
         if project_id:
             request.project_id = project_id
-            logger.info(f"Using project_id from query parameter: {project_id}")
         
         # 如果没有project_id，生成一个新的
         if not hasattr(request, 'project_id') or not request.project_id:
             request.project_id = generate_timestamped_id("img")
-            logger.info(f"Generated new project_id: {request.project_id}")
         
         output_id = request.project_id
         
         # 处理platforms参数
         if Platform.ALL in request.platforms:
             request.platforms = [Platform.GOOGLE, Platform.FACEBOOK, Platform.APPLOVIN, Platform.MOLOCO, Platform.TIKTOK]
-            logger.info(f"Expanded 'all' to platforms: {request.platforms}")
         
         # 验证至少有一个平台
         if not request.platforms:
             return error_response("At least one platform must be selected", 400)
         
         # 生成广告文件
-        logger.info(f"Generating image ad with platforms: {request.platforms}")
         file_urls, preview_url = await generate_image_ad_html(request, output_id)
         
         return success_response({
@@ -145,7 +139,6 @@ async def generate_image_ad(
         }, "Image ad generated successfully")
     
     except ValueError as e:
-        logger.warning(f"Invalid request data: {str(e)}")
         return error_response(str(e), 400)
     except Exception as e:
         logger.error(f"Failed to generate image ad: {str(e)}")

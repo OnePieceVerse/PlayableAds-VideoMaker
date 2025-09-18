@@ -71,7 +71,6 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       }
 
       if (needsUpdate) {
-        console.log("Initializing banner positions:", updatedBanners);
         updateFormData("banners", updatedBanners);
       }
     }
@@ -128,16 +127,6 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       
       uploadData.append("project_id", formData.project_id);
       uploadData.append("position", position);
-
-      console.log("Uploading banner with data:", {
-        type: "image",
-        step: "banner_images",
-        project_id: formData.project_id,
-        position: position,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type
-      });
 
       // Upload to backend API
       const response = await fetch(API_PATHS.upload, {
@@ -212,8 +201,6 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
     e.preventDefault();
     e.stopPropagation();
     
-    console.log(`Starting to drag ${bannerType} banner`);
-    
     // 记录初始点击位置
     const initialClientX = e.clientX;
     const initialClientY = e.clientY;
@@ -221,8 +208,6 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
     // 获取当前banner的初始位置
     const initialLeft = formData.banners[bannerType]?.position?.left || 0;
     const initialTop = formData.banners[bannerType]?.position?.top || 0;
-    
-    console.log(`Initial position: left=${initialLeft}, top=${initialTop}`);
     
     // 立即设置状态
     setIsDraggingBanner(true);
@@ -241,7 +226,6 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       }
       
       const rect = container.getBoundingClientRect();
-      console.log(`Container size: width=${rect.width}, height=${rect.height}`);
       
       // 计算鼠标移动距离（像素）
       const deltaX = moveEvent.clientX - initialClientX;
@@ -259,8 +243,6 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       const clampedX = Math.max(0, Math.min(100, newLeft));
       const clampedY = Math.max(0, Math.min(100, newTop));
       
-      console.log(`Moved to: left=${clampedX.toFixed(2)}, top=${clampedY.toFixed(2)}`);
-      
       // 更新 Banner 位置
       const updatedBanners = { ...formData.banners };
       if (updatedBanners[bannerType]) {
@@ -268,13 +250,11 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
           ...updatedBanners[bannerType]!,
           position: { left: clampedX, top: clampedY }
         };
-        console.log('Updated banners:', updatedBanners);
         updateFormData("banners", updatedBanners);
       }
     };
     
     const handleMouseUp = () => {
-      console.log('Drag ended');
       setIsDraggingBanner(false);
       setDraggingBannerType(null);
       document.removeEventListener('mousemove', handleMouseMove);
@@ -300,14 +280,12 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
 
   // Banner 缩放处理函数
   const handleBannerScaleChange = (bannerType: "left" | "right", scale: number) => {
-    console.log(`Changing ${bannerType} banner scale to ${scale}`);
     const updatedBanners = { ...formData.banners };
     if (updatedBanners[bannerType]) {
       updatedBanners[bannerType] = {
         ...updatedBanners[bannerType]!,
         scale: scale
       };
-      console.log("Updated banners:", updatedBanners);
       updateFormData("banners", updatedBanners);
     }
   };

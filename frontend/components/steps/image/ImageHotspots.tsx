@@ -535,17 +535,6 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       const newX = Math.max(0, Math.min(100, initialX + deltaPercentX));
       const newY = Math.max(0, Math.min(100, initialY + deltaPercentY));
       
-      console.log('Frontend position debug:', { 
-        newX, newY, 
-        displayedImageWidth, displayedImageHeight,
-        deltaX, deltaY,
-        deltaPercentX, deltaPercentY,
-        initialX, initialY,
-        clientX: moveEvent.clientX,
-        clientY: moveEvent.clientY,
-        initialClientX, initialClientY
-      });
-
       setHotspots(prev => prev.map(h => 
         h.id === hotspotId ? 
           h.useDefaultSvg ? 

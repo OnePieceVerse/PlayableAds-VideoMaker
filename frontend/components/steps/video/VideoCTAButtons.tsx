@@ -374,9 +374,9 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       return;
     }
 
-    // 验证 End Screen 按钮的时间 - 现在允许从0开始
-    if (buttonTypeToAdd === "endscreen" && startTime < 0) {
-      setError("End Screen button start time cannot be negative.");
+    // 验证 End Screen 按钮的时间 - 必须大于0
+    if (buttonTypeToAdd === "endscreen" && startTime <= 0) {
+      setError("End Screen button start time must be greater than 0 seconds.");
       return;
     }
 
@@ -431,9 +431,9 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
   const saveEdit = () => {
     if (!editingButton || !currentButton) return;
 
-    // 验证 End Screen 按钮的时间 - 现在允许从0开始
-    if (editingButton.type === "endscreen" && startTime < 0) {
-      setError("End Screen button start time cannot be negative.");
+    // 验证 End Screen 按钮的时间 - 必须大于0
+    if (editingButton.type === "endscreen" && startTime <= 0) {
+      setError("End Screen button start time must be greater than 0 seconds.");
       return;
     }
 

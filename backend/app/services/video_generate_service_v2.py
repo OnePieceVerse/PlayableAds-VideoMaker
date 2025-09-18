@@ -194,16 +194,17 @@ class VideoConfigGenerator:
         # 如果提供了自定义按钮图片，则使用它
         if frame.buttonImage_id:
             button_ext = get_file_extension(self.project_dir, frame.buttonImage_id) if self.project_dir else ".png"
-            relative_path = f"{self.relative_images_dir}/{frame.buttonImage_id}{button_ext}"
+            button_image = f"{frame.buttonImage_id}{button_ext}"
             
             # 使用自定义按钮的位置和缩放
             if frame.buttonPosition:
                 button_position = frame.buttonPosition
             if frame.buttonScale is not None:
                 button_scale = frame.buttonScale
-        
+        else:
+            button_scale = 1
         return {
-            "buttonImage": relative_path,
+            "buttonImage": f"{self.relative_images_dir}/{button_image}",
             "buttonEffect": "scale",
             "buttonSize": self._create_responsive_size(button_scale),
             "buttonPosition": self._create_responsive_position(button_position)

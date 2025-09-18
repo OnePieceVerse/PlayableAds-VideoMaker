@@ -70,9 +70,7 @@ function initAudioPlayback() {
             playPromise.then(() => {
                 audioPlaying = true;
                 audioToggle.innerHTML = audioOnSvg;
-                console.log('Audio playback started');
             }).catch(error => {
-                console.log('Auto-play prevented by browser:', error);
                 audioToggle.innerHTML = audioOffSvg;
                 
                 // 如果自动播放失败，添加点击事件监听器
@@ -80,7 +78,6 @@ function initAudioPlayback() {
                     bgAudio.play().then(() => {
                         audioPlaying = true;
                         audioToggle.innerHTML = audioOnSvg;
-                        console.log('Audio started after user interaction');
                         document.removeEventListener('click', audioClickHandler);
                     }).catch(err => {
                         console.error('Failed to play audio after click:', err);
@@ -139,7 +136,6 @@ const app = document.getElementById('app');
             
             // 获取scale值（百分比），相对于图片宽度
             const scalePercent = spot.scale || 25;
-            console.log(`Hotspot ${spot.type} scale: ${scalePercent}%`);
             
             // 设置外层div的宽度为图片容器宽度的百分比
             div.style.width = `${scalePercent}%`;
@@ -192,13 +188,8 @@ const ctaContainer = document.getElementById('cta-container');
 // 清空容器
 ctaContainer.innerHTML = '';
 
-// 添加调试信息
-console.log('CTA container found:', ctaContainer !== null);
-console.log('CTA container:', ctaContainer);
-
 // 检查是否有配置的CTA按钮
 if (config.cta_buttons && config.cta_buttons.length > 0) {
-    console.log('Rendering CTA buttons:', config.cta_buttons);
     
     config.cta_buttons.forEach((button, index) => {
         // 检查按钮图片是否存在
@@ -217,7 +208,6 @@ if (config.cta_buttons && config.cta_buttons.length > 0) {
         if (button.scale) {
             // scale值表示百分比，例如25表示25%
             const scalePercent = button.scale;
-            console.log(`CTA button ${index} scale: ${scalePercent}%`);
             
             // 设置宽度为容器宽度的百分比
             ctaButton.style.width = `${scalePercent}%`;
@@ -227,27 +217,12 @@ if (config.cta_buttons && config.cta_buttons.length > 0) {
         
         ctaButton.style.zIndex = '1001'; // 比容器更高的z-index
         
-        // 移除调试边框
-        // ctaButton.style.border = '2px solid rgba(255, 0, 0, 0.5)';
-        
         // 添加点击事件
         ctaButton.addEventListener('click', () => {
-            console.log('CTA button clicked');
-            if (config.download && config.download.url) {
-                window.location.href = config.download.url;
-            } else {
-                // 如果没有配置下载链接，默认跳转到应用商店
-                window.location.href = 'https://apps.apple.com/app';
-            }
+            window.location.href = '#';
         });
         
-        // 添加加载事件，确认图片已加载
-        ctaButton.onload = function() {
-            console.log(`CTA button ${index} image loaded successfully`);
-        };
-        
         ctaButton.onerror = function() {
-            console.error(`CTA button ${index} image failed to load`);
             // 添加一个占位符，使其可见
             this.style.backgroundColor = 'red';
             this.style.width = '100px';
@@ -256,53 +231,9 @@ if (config.cta_buttons && config.cta_buttons.length > 0) {
         
         // 添加到CTA容器
         ctaContainer.appendChild(ctaButton);
-        
-        // 添加调试信息
-        console.log(`Added CTA button ${index}:`, button);
-        console.log(`CTA button ${index} image:`, button.image);
-        console.log(`CTA button ${index} position:`, button.position);
     });
-} else {
-    // 如果没有配置的CTA按钮，创建一个默认的CTA按钮
-    console.log('No CTA buttons configured, creating a default one');
-    
-    const defaultCtaButton = document.createElement('button');
-    defaultCtaButton.className = 'default-cta-button';
-    defaultCtaButton.textContent = 'Download Now';
-    defaultCtaButton.style.position = 'absolute';
-    defaultCtaButton.style.left = '50%';
-    defaultCtaButton.style.bottom = '10%';
-    defaultCtaButton.style.transform = 'translateX(-50%)';
-    defaultCtaButton.style.padding = '10px 20px';
-    defaultCtaButton.style.backgroundColor = '#ff5722';
-    defaultCtaButton.style.color = 'white';
-    defaultCtaButton.style.border = 'none';
-    defaultCtaButton.style.borderRadius = '20px';
-    defaultCtaButton.style.fontSize = '16px';
-    defaultCtaButton.style.fontWeight = 'bold';
-    defaultCtaButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-    defaultCtaButton.style.cursor = 'pointer';
-    defaultCtaButton.style.zIndex = '1001';
-    defaultCtaButton.style.pointerEvents = 'auto';
-    
-    // 添加点击事件
-    defaultCtaButton.addEventListener('click', () => {
-        console.log('Default CTA button clicked');
-        window.location.href = 'https://apps.apple.com/app';
-    });
-    
-    // 添加到CTA容器
-    ctaContainer.appendChild(defaultCtaButton);
-    console.log('Added default CTA button');
 }
 
-// 添加一个调试用的彩色边框，帮助识别CTA容器位置
-if (ctaContainer) {
-    ctaContainer.style.border = '2px dashed rgba(255, 0, 0, 0.3)';
-    setTimeout(() => {
-        ctaContainer.style.border = 'none';
-    }, 5000); // 5秒后移除边框
-}
 
 // 动画定时器
 setInterval(() => {
@@ -329,7 +260,6 @@ const modalText = document.getElementById('modal-text');
 const closeModal = document.getElementById('close-modal');
 
 function handleHotspot(spot) {
-    console.log("Handling hotspot click:", spot);
     if (spot.type === 'url') {
         window.location.href = spot.url;
     } else if (spot.type === 'popup') {

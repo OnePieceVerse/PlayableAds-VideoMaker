@@ -32,12 +32,10 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
   useEffect(() => {
     const fetchSystemAudio = async () => {
       try {
-        console.log('Fetching system audio list from backend');
         // 使用API_PATHS中的配置
         const response = await fetch(API_PATHS.systemAudio);
         if (response.ok) {
           const audioList = await response.json();
-          console.log('Received system audio list:', audioList.length);
           
           // 使用原始的后端URL
           setSystemAudioList(audioList);
@@ -108,8 +106,6 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
   const selectSystemAudio = (audio: any) => {
     // 使用getFullUrl从配置中获取完整URL
     const url = getFullUrl(audio.url);
-    
-    console.log('Using audio URL from config:', url);
     
     const audioData = {
       type: 'system',

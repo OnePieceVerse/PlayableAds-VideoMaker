@@ -462,15 +462,6 @@ const generateAd = async () => {
             )}
           </div>
 
-          {/* 添加Back按钮到视频下方 */}
-          <div className="flex justify-between mt-4">
-            <button
-              onClick={prevStep}
-              className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
-            >
-              Back
-            </button>
-          </div>
           {/* 预览区域结束 */}
         </div>
 
@@ -745,6 +736,16 @@ const generateAd = async () => {
             )}
           </div>
         </div>
+      </div>
+      
+      {/* 导航按钮 */}
+      <div className="flex justify-start pt-6">
+        <button
+          onClick={prevStep}
+          className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
+        >
+          Back
+        </button>
       </div>
     </div>
   );

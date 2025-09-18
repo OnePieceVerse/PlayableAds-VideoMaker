@@ -22,8 +22,6 @@ export async function GET(request: NextRequest) {
       // We need to handle the full path after /api/system-audio/
       const audioPath = path.replace(/^\/api\/system-audio\/?/, '');
       backendUrl = `${BACKEND_URL}/system-audio/${audioPath}`;
-      
-      console.log('Requesting audio file:', backendUrl);
     } else {
       backendUrl = `${BACKEND_URL}/system-audio`;
     }

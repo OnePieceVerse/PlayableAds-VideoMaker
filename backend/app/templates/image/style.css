@@ -82,8 +82,7 @@ html, body {
     background: #112138;
     border-radius: 10px;
     padding: 1em;
-    max-width: 90vw;
-    min-width: 320px;  /* 改为最小宽度 */
+    max-width: 95vw;   /* 增加最大宽度 */
     width: auto;       /* 自动宽度，根据内容调整 */
     max-height: 90vh;  /* 增加最大高度限制 */
     position: relative;
@@ -119,13 +118,13 @@ html, body {
     align-items: center;
     margin-bottom: 1em;
     max-height: 85vh; /* 增加最大高度 */
-    overflow-y: auto;
+    overflow: hidden; /* 隐藏滚动条 */
     padding: 0.5em;
   }
   
   .modal-img {
-    width: 100%;         /* 强制所有图片宽度一致 */
-    max-width: 100%;     /* 防止超出容器 */
+    width: calc(100vw - 2rem);  /* 屏幕宽度减去左右边距 */
+    max-width: calc(100vw - 2rem);  /* 防止超出容器 */
     height: auto;        /* 高度自适应，保持比例 */
     object-fit: contain; /* 保证图片完整显示 */
     border-radius: 6px;

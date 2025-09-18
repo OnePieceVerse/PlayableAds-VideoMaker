@@ -269,7 +269,7 @@ function createGuideElements(point) {
   }
 }
 function ctaClick() {
-  window.location.href = config.cta_start_button.url;
+  window.location.href = '#';
 }
 
 // 创建CTA开始按钮，在视频开始时显示

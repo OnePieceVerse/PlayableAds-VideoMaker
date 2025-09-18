@@ -4,12 +4,13 @@
 包含图片和视频广告生成器的公共逻辑
 """
 
-import os
 import logging
 import re
 import json
 import zipfile
 import base64
+import shutil
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Dict, Tuple, Union, Optional, Any
@@ -17,7 +18,7 @@ from typing import List, Dict, Tuple, Union, Optional, Any
 from backend.app.models.schemas import Platform
 from backend.app.config import PROJECTS_DIR, BACKEND_BASE_URL
 from backend.app.models.schemas import ImageVideoGenerateRequest, VideoGenerateRequest
-from backend.app.utils.file_utils import copy_file_safely, create_directory_structure
+from backend.app.utils.file_utils import copy_file_safely
 from backend.app.services.platform_service import PlatformService
 from backend.app.services.common import create_assets_directory_structure
 
@@ -37,6 +38,17 @@ class BaseAdGenerator(ABC):
         self.relative_videos_dir = "assets/videos"
         self.relative_audios_dir = "assets/audios"
         self.assets_dirs = self._setup_assets_dirs()
+    
+    def get_interaction_type(self) -> str:
+        """获取交互类型（image或video）"""
+        # 通过类名判断
+        class_name = self.__class__.__name__
+        if "Image" in class_name:
+            return "image"
+        elif "Video" in class_name:
+            return "video"
+        else:
+            return "unknown"
 
         
     def _setup_assets_dirs(self) -> Dict[str, Path]:
@@ -105,48 +117,35 @@ class BaseAdGenerator(ABC):
             template_dir = Path(__file__).parent.parent / "templates" / template_type
             preview_dir = self.assets_dirs['preview']
             
-            # 复制所有模板文件
-            template_files = ["index.html", "style.css", "main.js"]
-            
-            for filename in template_files:
-                src_file = template_dir / filename
-                dst_file = preview_dir / filename
-                
-                if src_file.exists():
-                    copy_file_safely(src_file, dst_file)
-                    logger.debug(f"Copied template file: {filename}")
-                else:
-                    logger.warning(f"Template file not found: {src_file}")
-            
-            logger.info("Template files copied successfully")
+            # 复制template_dir下的所有文件和目录
+            for item in template_dir.iterdir():
+                if item.is_file():
+                    # 复制文件
+                    dst_file = preview_dir / item.name
+                    copy_file_safely(item, dst_file)
+                elif item.is_dir():
+                    # 复制目录
+                    dst_dir = preview_dir / item.name
+                    dst_dir.mkdir(parents=True, exist_ok=True)
+                    # 递归复制目录内容
+                    self._copy_directory_contents(item, dst_dir)
             
         except Exception as e:
             logger.error(f"Failed to copy template files: {str(e)}")
             raise
-
-    def _apply_platform_modifications(self, zipf: zipfile.ZipFile, platform: str, arcname: str) -> None:
-        """应用平台特定修改"""
-        try:
-            # 读取原始HTML内容
-            html_content = zipf.read(arcname).decode('utf-8')
-            
-            # 获取方向
-            orientation = "portrait"
-            if hasattr(self.request, 'orientation') and self.request.orientation:
-                orientation = self.request.orientation.value if hasattr(self.request.orientation, 'value') else str(self.request.orientation).lower()
-            
-            # 应用平台特定修改
-            platform_service = PlatformService()
-            modified_html = platform_service.apply_platform_modifications(html_content, platform, orientation)
-            
-            # 更新ZIP中的文件
-            zipf.writestr(arcname, modified_html.encode('utf-8'))
-            
-        except Exception as e:
-            logger.error(f"Failed to apply platform modifications for {platform}: {str(e)}")
+    
+    def _copy_directory_contents(self, src_dir: Path, dst_dir: Path) -> None:
+        """递归复制目录内容"""
+        for item in src_dir.iterdir():
+            if item.is_file():
+                dst_file = dst_dir / item.name
+                copy_file_safely(item, dst_file)
+            elif item.is_dir():
+                dst_subdir = dst_dir / item.name
+                dst_subdir.mkdir(parents=True, exist_ok=True)
+                self._copy_directory_contents(item, dst_subdir)
 
 
- 
     def _cleanup_empty_asset_directories(self) -> None:
         """清理空的资源目录"""
         try:
@@ -155,7 +154,6 @@ class BaseAdGenerator(ABC):
                 asset_dir = self.assets_dirs['preview'] / "assets" / dir_name
                 if asset_dir.exists() and not any(asset_dir.iterdir()):
                     asset_dir.rmdir()
-                    logger.info(f"Removed empty directory: {asset_dir}")
         except Exception as e:
             logger.error(f"Failed to cleanup empty asset directories: {str(e)}")
 
@@ -163,33 +161,80 @@ class BaseAdGenerator(ABC):
         """生成平台特定输出文件（公共逻辑）"""
         try:
             output_paths = []
+            platform_service = PlatformService()
             
             # 创建outputs目录
             outputs_dir = self.project_dir / "outputs"
             outputs_dir.mkdir(exist_ok=True)
             
-            # 根据平台生成相应文件
+            # 获取方向和语言信息
+            orientation = "portrait"
+            if hasattr(self.request, 'orientation') and self.request.orientation:
+                orientation = self.request.orientation.value if hasattr(self.request.orientation, 'value') else str(self.request.orientation).lower()
+            
+            language = "en"
+            if hasattr(self.request, 'language') and self.request.language:
+                language = self.request.language.value if hasattr(self.request.language, 'value') else str(self.request.language).lower()
+            
+            app_name = "PlayableAds"
+            if hasattr(self.request, 'app_name') and self.request.app_name:
+                app_name = self.request.app_name
+            
+            version = "1.0"
+            if hasattr(self.request, 'version') and self.request.version:
+                version = self.request.version
+            
+            # 为每个平台生成独立的文件
             if hasattr(self.request, 'platforms') and self.request.platforms:
                 for platform in self.request.platforms:
                     platform_name = platform.value if hasattr(platform, 'value') else str(platform).lower()
                     
-                    if platform_name == "tiktok":
-                        self._generate_tiktok_config()
-                        output_path = self._create_zip_package(platform_name, outputs_dir)
-                    elif platform_name in ["google", "facebook"]:
-                        output_path = self._create_zip_package(platform_name, outputs_dir)
-                    elif platform_name in ["applovin", "moloco"]:
-                        output_path = self._create_single_html(platform_name, outputs_dir)
-                    else:
+                    # 检查是否为支持的平台
+                    if platform_name not in platform_service.get_supported_platforms():
                         logger.warning(f"Unknown platform: {platform_name}")
                         continue
                     
-                    if output_path:
-                        output_paths.append(output_path)
+                    # 为每个平台创建独立的临时文件夹
+                    temp_platform_dir = self.project_dir / f"temp_{platform_name}_{int(time.time())}"
+                    try:
+                        # 复制预览文件到临时文件夹
+                        shutil.copytree(self.assets_dirs['preview'], temp_platform_dir)
+                        
+                        # 为当前平台生成特定的文件
+                        platform_service.generate_platform_need_files(temp_platform_dir, platform_name, orientation, language)
+                        
+                        # 为当前平台应用特定的修改
+                        platform_service._apply_single_platform_modifications(
+                            temp_platform_dir,
+                            platform_name,
+                            orientation,
+                            language,
+                            app_name
+                        )
+                        
+                        # 根据平台类型创建文件
+                        if platform_service.is_zip_platform(platform_name):
+                            output_path = self._create_zip_package(platform_name, outputs_dir, temp_platform_dir, app_name, language, version, orientation)
+                        elif platform_service.is_html_platform(platform_name):
+                            output_path = self._create_single_html(platform_name, outputs_dir, temp_platform_dir, app_name, language, version, orientation)
+                        else:
+                            logger.warning(f"Unknown output format for platform: {platform_name}")
+                            continue
+                        
+                        if output_path:
+                            output_paths.append(output_path)
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to process platform {platform_name}: {str(e)}")
+                        
+                    finally:
+                        # 清理临时文件夹
+                        if temp_platform_dir.exists():
+                            shutil.rmtree(temp_platform_dir)
             
             # 如果有多个平台，创建总压缩包
             if len(self.request.platforms) > 1:
-                all_platforms_zip = self._create_all_platforms_package(outputs_dir)
+                all_platforms_zip = self._create_all_platforms_package(outputs_dir, app_name, language, version)
                 if all_platforms_zip:
                     return [all_platforms_zip]
             
@@ -199,37 +244,17 @@ class BaseAdGenerator(ABC):
             logger.error(f"Failed to generate platform outputs: {str(e)}")
             raise
     
-    def _generate_tiktok_config(self) -> None:
-        """生成TikTok平台的config.json文件"""
-        try:
-            # 获取方向和语言
-            orientation = "portrait"
-            if hasattr(self.request, 'orientation') and self.request.orientation:
-                orientation = self.request.orientation.value if hasattr(self.request.orientation, 'value') else str(self.request.orientation).lower()
-            
-            language = "en"
-            if hasattr(self.request, 'language') and self.request.language:
-                language = self.request.language.value if hasattr(self.request.language, 'value') else str(self.request.language).lower()
-            
-            config_json = {
-                "playable_orientation": orientation,
-                "playable_languages": [language]
-            }
-            
-            config_file = self.assets_dirs['preview'] / "config.json"
-            with open(config_file, "w", encoding="utf-8") as f:
-                json.dump(config_json, f, indent=2)
-            
-            logger.info("Generated config.json for TikTok platform")
-            
-        except Exception as e:
-            logger.error(f"Failed to generate config.json for TikTok: {str(e)}")
     
-    def _create_zip_package(self, platform: str, outputs_dir: Path) -> str:
+    def _create_zip_package(self, platform: str, outputs_dir: Path, temp_platform_dir: Path, app_name: str, language: str, version: str, orientation: str) -> str:
         """创建ZIP包"""
         try:
-            preview_dir = self.assets_dirs['preview']
-            zip_file_path = outputs_dir / f"{platform}.zip"
+            preview_dir = temp_platform_dir
+            
+            # 生成文件名：app_name-interaction_type-platform-language-version.zip
+            safe_app_name = self._sanitize_filename(app_name)
+            interaction_type = self.get_interaction_type()
+            filename = f"{safe_app_name}-{interaction_type}-{platform}-{language}-{version}.zip"
+            zip_file_path = outputs_dir / filename
             
             with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 # 添加所有预览目录文件到ZIP
@@ -238,22 +263,17 @@ class BaseAdGenerator(ABC):
                         # 计算相对路径
                         arcname = file_path.relative_to(preview_dir)
                         zipf.write(file_path, arcname)
-                        
-                        # 应用平台特定修改
-                        if file_path.name == "index.html":
-                            self._apply_platform_modifications(zipf, platform, str(arcname))
             
-            download_url = f"{BACKEND_BASE_URL}/api/file/download/{self.project_dir.name}/outputs/{platform}.zip"
-            logger.info(f"Created {platform} ZIP package: {zip_file_path}")
+            download_url = f"{BACKEND_BASE_URL}/api/file/download/{self.project_dir.name}/outputs/{filename}"
             return download_url
             
         except Exception as e:
             logger.error(f"Failed to create ZIP package for {platform}: {str(e)}")
             return ""
     
-    def _create_single_html(self, platform: str, outputs_dir: Path) -> str:
+    def _create_single_html(self, platform: str, outputs_dir: Path, temp_platform_dir: Path, app_name: str, language: str, version: str, orientation: str) -> str:
         """创建单文件HTML"""
-        preview_dir = self.assets_dirs['preview']
+        preview_dir = temp_platform_dir
         
         # 读取各个文件内容
         html_content = self._read_template_file(preview_dir / "index.html")
@@ -310,13 +330,71 @@ class BaseAdGenerator(ABC):
             html_content, css_content, js_content, config_content
         )
         
+        # 生成文件名：app_name-interaction_type-platform-language-version.html
+        safe_app_name = self._sanitize_filename(app_name)
+        interaction_type = self.get_interaction_type()
+        filename = f"{safe_app_name}-{interaction_type}-{platform}-{language}-{version}.html"
+        html_file_path = outputs_dir / filename
+        
         # 保存单文件HTML
-        html_file_path = outputs_dir / f"{platform}.html"
         with open(html_file_path, 'w', encoding='utf-8') as f:
             f.write(single_html)
         
-        logger.info(f"Created single HTML file: {html_file_path}")
-        return f"{BACKEND_BASE_URL}/api/file/download/{self.output_id}/outputs/{platform}.html"
+        return f"{BACKEND_BASE_URL}/api/file/download/{self.output_id}/outputs/{filename}"
+    
+    def _sanitize_filename(self, filename: str) -> str:
+        """
+        清理文件名，移除不安全字符
+        
+        Args:
+            filename: 原始文件名
+            
+        Returns:
+            str: 清理后的安全文件名
+        """
+        import re
+        # 移除或替换不安全字符
+        safe_name = re.sub(r'[<>:"/\\|?*\s]', '-', filename)
+        # 移除多余的连字符
+        safe_name = re.sub(r'-+', '-', safe_name)
+        # 移除开头和结尾的连字符
+        safe_name = safe_name.strip('-')
+        # 如果为空，使用默认名称
+        if not safe_name:
+            safe_name = "PlayableAd"
+        return safe_name
+    
+    def _create_all_platforms_package(self, outputs_dir: Path, app_name: str, language: str, version: str) -> str:
+        """
+        创建包含所有平台文件的总压缩包
+        
+        Args:
+            outputs_dir: 输出目录
+            app_name: 应用名称
+            language: 语言
+            version: 版本
+            
+        Returns:
+            str: 下载URL
+        """
+        try:
+            safe_app_name = self._sanitize_filename(app_name)
+            interaction_type = self.get_interaction_type()
+            filename = f"{safe_app_name}-{interaction_type}-all-platforms-{language}-{version}.zip"
+            all_platforms_zip = outputs_dir / filename
+            
+            with zipfile.ZipFile(all_platforms_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # 添加所有已生成的平台文件
+                for file_path in outputs_dir.glob('*'):
+                    if file_path.is_file() and file_path.name != filename:
+                        zipf.write(file_path, file_path.name)
+            
+            download_url = f"{BACKEND_BASE_URL}/api/file/download/{self.project_dir.name}/outputs/{filename}"
+            return download_url
+            
+        except Exception as e:
+            logger.error(f"Failed to create all platforms package: {str(e)}")
+            return ""
     
     def _read_template_file(self, file_path: Path) -> str:
         """读取模板文件内容"""
@@ -396,8 +474,6 @@ class BaseAdGenerator(ABC):
                                 # 使用相对路径作为key
                                 relative_path = f"{self.relative_images_dir}/{image_file.name}"
                                 image_base64_data[relative_path] = data_uri
-                                
-                                logger.info(f"Converted image to base64: {image_file.name}")
                         except Exception as e:
                             logger.error(f"Failed to convert image {image_file.name} to base64: {str(e)}")
             
@@ -475,158 +551,3 @@ class BaseAdGenerator(ABC):
         
         return html
     
-    def _create_all_platforms_package(self, outputs_dir: Path) -> str:
-        """创建包含所有平台文件的总压缩包"""
-        try:
-            all_platforms_zip = outputs_dir / "all_platforms.zip"
-            
-            with zipfile.ZipFile(all_platforms_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # 遍历outputs目录中的所有文件
-                for file_path in outputs_dir.iterdir():
-                    if (file_path.is_file() and 
-                        file_path.name != "all_platforms.zip" and
-                        not file_path.name.startswith('.DS_Store') and
-                        not file_path.name.startswith('._')):
-                        zipf.write(file_path, file_path.name)
-            
-            download_url = f"{BACKEND_BASE_URL}/api/file/download/{self.project_dir.name}/outputs/all_platforms.zip"
-            logger.info(f"Created all platforms package: {all_platforms_zip}")
-            return download_url
-            
-        except Exception as e:
-            logger.error(f"Failed to create all platforms package: {str(e)}")
-            return ""
-
-
-class PlatformService:
-    """处理不同平台特定内容的服务类"""
-    
-    @staticmethod
-    def get_platform_head_content(platform: Platform, language: str = "en", orientation: str = "portrait") -> str:
-        """获取平台特定的head部分内容"""
-        if platform == Platform.GOOGLE:
-            return f'''    <meta name="ad.orientation" content="{orientation}">
-    <meta name="ad.language" content="{language}">
-    <script type="text/javascript" src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>'''
-        
-        # 其他平台暂时不需要特殊的head内容
-        return ""
-    
-    @staticmethod
-    def get_platform_body_end_content(platform: Platform) -> str:
-        """获取平台特定的body结束前的内容"""
-        if platform == Platform.TIKTOK:
-            return '  <script src="https://sf16-muse-va.ibytedtos.com/obj/union-fe-nc-i18n/playable/sdk/playable-sdk.js"></script>'
-        
-        # 其他平台暂时不需要特殊的body内容
-        return ""
-    
-    @staticmethod
-    def get_platform_cta_code(platform: Platform) -> str:
-        """获取平台特定的CTA点击代码"""
-        cta_codes = {
-            Platform.GOOGLE: "window.ExitApi.exit();",
-            Platform.FACEBOOK: "window.FbPlayableAd.onCTAClick();",
-            Platform.APPLOVIN: "window.mraid.open();",
-            Platform.MOLOCO: "window.FbPlayableAd.onCTAClick();",
-            Platform.TIKTOK: "window.openAppStore();"
-        }
-        
-        return cta_codes.get(platform, "window.location.href = '#';")
-    
-    @staticmethod
-    def requires_zip_packaging(platform: Platform) -> bool:
-        """检查平台是否需要ZIP打包"""
-        return platform in [Platform.GOOGLE, Platform.TIKTOK]
-    
-    @staticmethod
-    def requires_config_json(platform: Platform) -> bool:
-        """检查平台是否需要config.json文件"""
-        return platform == Platform.TIKTOK
-    
-    @staticmethod
-    def get_platform_file_extension(platform: Platform) -> str:
-        """获取平台输出文件的扩展名"""
-        if PlatformService.requires_zip_packaging(platform):
-            return ".zip"
-        return ".html"
-    
-    @staticmethod
-    def apply_platform_modifications(html_content: str, platform: Platform, language: str = "en", app_name: str = "PlayableAds", orientation: str = "portrait") -> str:
-        """应用平台特定的HTML修改"""
-        modified_content = html_content
-        
-        # 1. 添加平台特定的head内容
-        head_content = PlatformService.get_platform_head_content(platform, language, orientation)
-        if head_content:
-            modified_content = modified_content.replace(
-                '<head>',
-                f'<head>\n{head_content}'
-            )
-        
-        # 2. 添加平台特定的body结束内容
-        body_end_content = PlatformService.get_platform_body_end_content(platform)
-        if body_end_content:
-            modified_content = modified_content.replace(
-                '</body>',
-                f'{body_end_content}\n</body>'
-            )
-        
-        # 3. 替换CTA代码
-        cta_code = PlatformService.get_platform_cta_code(platform)
-        modified_content = modified_content.replace(
-            'window.location.href = config.cta_start_button.url;',
-            cta_code
-        )
-        
-        # 4. 设置语言
-        modified_content = modified_content.replace(
-            '<html lang="en">',
-            f'<html lang="{language}">'
-        )
-        
-        # 5. 设置应用名称
-        modified_content = modified_content.replace(
-            '<title>Playable Ad</title>',
-            f'<title>{app_name}</title>'
-        )
-        
-        return modified_content
-    
-    @staticmethod
-    def get_platform_specific_files(platform: Platform, project_dir: Path) -> Dict[str, Optional[Path]]:
-        """获取平台特定需要的文件"""
-        files = {}
-        
-        if platform == Platform.TIKTOK:
-            config_json = project_dir / "config.json"
-            files['config_json'] = config_json if config_json.exists() else None
-        
-        return files
-    
-    @staticmethod
-    def validate_platform_requirements(platform: Platform, project_dir: Path) -> Dict[str, Any]:
-        """验证平台特定的要求"""
-        validation_result = {
-            "valid": True,
-            "errors": [],
-            "warnings": []
-        }
-        
-        # TikTok平台特定验证
-        if platform == Platform.TIKTOK:
-            config_json = project_dir / "config.json"
-            if not config_json.exists():
-                validation_result["warnings"].append("TikTok platform recommends including config.json file")
-        
-        # Google平台特定验证
-        if platform == Platform.GOOGLE:
-            # 可以添加Google特定的验证逻辑
-            pass
-        
-        # Facebook平台特定验证
-        if platform == Platform.FACEBOOK:
-            # 可以添加Facebook特定的验证逻辑
-            pass
-        
-        return validation_result

@@ -310,7 +310,6 @@ class ImageConfigGenerator:
         if source != target:
             try:
                 shutil.copy(source, target)
-                logger.info(f"Copied file from {source} to {target}")
             except shutil.SameFileError:
                 logger.warning(f"Source and destination are the same file: {source}")
         else:
@@ -409,7 +408,6 @@ class ImageConfigGenerator:
         返回音频文件列表，如果没有音频文件则返回空字典
         """
         if self._audio_files:
-            logger.info(f"Added {len(self._audio_files)} audio files to config")
             return {"audio": self._audio_files}
         return {}
 

@@ -260,8 +260,6 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       };
       updatedFrame.buttonPosition = { ...buttonPosition };
       updatedFrame.buttonScale = buttonScale;
-      
-      console.log("Adding frame with button image:", updatedFrame.buttonImage.id);
     }
 
     // 添加当前帧到列表
@@ -364,8 +362,6 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       };
       updatedFrame.buttonPosition = { ...buttonPosition };
       updatedFrame.buttonScale = buttonScale;
-      
-      console.log("Saving frame with button image:", updatedFrame.buttonImage.id);
     }
     
     // 更新帧列表

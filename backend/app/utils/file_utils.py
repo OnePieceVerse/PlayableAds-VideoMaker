@@ -100,7 +100,6 @@ def copy_file_safely(source: Path, target: Path) -> bool:
     if source != target:
         try:
             shutil.copy(source, target)
-            logger.info(f"Copied file from {source} to {target}")
             return True
         except (shutil.SameFileError, FileNotFoundError, PermissionError) as e:
             logger.warning(f"Failed to copy file from {source} to {target}: {str(e)}")
@@ -275,8 +274,6 @@ async def get_video_metadata(file_path: Path) -> Dict[str, Any]:
                 "frame_count": frame_count,
                 "duration": round(duration, 2)
             })
-            
-            logger.info(f"Video metadata extracted: {width}x{height}, {duration:.2f}s, {fps:.2f}fps")
         else:
             logger.warning(f"Failed to open video file: {file_path}")
             metadata.update({
@@ -291,7 +288,6 @@ async def get_video_metadata(file_path: Path) -> Dict[str, Any]:
         return metadata
         
     except ImportError:
-        logger.warning("OpenCV not available, using basic metadata")
         return {
             "size": get_file_size(file_path),
             "format": file_path.suffix.lower(),

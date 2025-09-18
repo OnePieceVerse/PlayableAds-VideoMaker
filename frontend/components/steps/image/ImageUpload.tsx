@@ -27,7 +27,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onDrop = async (acceptedFiles: File[]) => {
-    console.log("onDrop triggered with files:", acceptedFiles);
     if (acceptedFiles.length === 0) return;
 
     const file = acceptedFiles[0];
@@ -78,7 +77,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       
       // 保存project_id到formData
       if (data.project_id) {
-        console.log("Saving project_id to formData:", data.project_id);
         updateFormData("project_id", data.project_id);
       }
 
@@ -99,7 +97,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   };
 
   const onDropRejected = (fileRejections: any[]) => {
-    console.log("Files rejected:", fileRejections);
     setError("Please select a valid image file (PNG, JPG, JPEG, GIF, WebP, SVG)");
   };
 
@@ -116,7 +113,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   });
 
   const handleClick = () => {
-    console.log("Upload area clicked");
     if (!uploading) {
       open();
     }

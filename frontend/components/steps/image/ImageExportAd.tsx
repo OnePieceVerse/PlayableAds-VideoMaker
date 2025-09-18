@@ -54,13 +54,6 @@ const ExportAd: React.FC<StepProps> = ({ formData, updateFormData, nextStep, pre
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   
-  // 调试输出
-  console.log("formData in ImageExportAd:", formData);
-  console.log("Button disabled state:", generating || !formData.image || selectedPlatforms.length === 0 || language === "");
-  console.log("formData.image:", formData.image);
-  console.log("selectedPlatforms:", selectedPlatforms);
-  console.log("language:", language);
-  
   // 组件加载时自动选择Google平台
   useEffect(() => {
     if (selectedPlatforms.length === 0) {
@@ -253,16 +246,12 @@ const generateAd = async () => {
         app_name: appName,
         orientation: orientation,
         hotspots: formData.hotspots?.length ? formData.hotspots.map((hotspot: any) => {
-          console.log("Processing hotspot:", hotspot);
           
           // 处理弹窗图片
           const modalImgs = hotspot.popupContent?.images?.map((img: any) => {
-            console.log("Popup image:", img);
             return img.id;
           }) || [];
           
-          console.log("Hotspot image ID:", hotspot.hotspotImage?.id);
-          console.log("Modal images:", modalImgs);
           
           return {
             left: hotspot.useDefaultSvg ? hotspot.x : (hotspot.hotspotImage?.x || hotspot.x || 0),
@@ -288,10 +277,6 @@ const generateAd = async () => {
         audio_files: formData.audio ? [formData.audio.id] : []
       };
       
-      // 发送请求
-      console.log("Sending request to", API_PATHS.generateImage);
-      console.log("Request data:", requestData);
-      
       const response = await fetch(API_PATHS.generateImage, {
         method: "POST",
         headers: {
@@ -300,11 +285,8 @@ const generateAd = async () => {
         body: JSON.stringify(requestData),
       });
       
-      console.log("Response status:", response.status);
-      
       // 处理响应
       const data = await response.json();
-      console.log("Response data:", data);
       
       if (data.success) {
         // 确保URL是完整的URL
@@ -444,16 +426,6 @@ const generateAd = async () => {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* 添加Back按钮到视频下方 */}
-          <div className="flex justify-between mt-4">
-            <button
-              onClick={prevStep}
-              className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
-            >
-              Back
-            </button>
           </div>
           {/* 预览区域结束 */}
         </div>
@@ -721,6 +693,16 @@ const generateAd = async () => {
             )}
           </div>
         </div>
+      </div>
+      
+      {/* 导航按钮 */}
+      <div className="flex justify-start pt-6">
+        <button
+          onClick={prevStep}
+          className="px-6 py-2 rounded-md text-gray-700 font-medium border border-gray-300 hover:bg-gray-50"
+        >
+          Back
+        </button>
       </div>
     </div>
   );
