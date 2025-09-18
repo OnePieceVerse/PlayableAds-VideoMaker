@@ -305,7 +305,6 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       }
 
       const data = await response.json();
-      console.log('Hotspot image upload response:', data);
 
       const currentHotspot = getSelectedHotspot();
       const hotspotImage = {
@@ -364,7 +363,6 @@ const ImageHotspots: React.FC<ImageHotspotsProps> = ({
       }
 
       const data = await response.json();
-      console.log('Popup image upload response:', data);
 
       const popupImage = {
         id: data.file_id || `popup-image-${Date.now()}`,

@@ -65,14 +65,16 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
       }
 
       const data = await response.json();
-      console.log("Upload response:", data);
 
       // Update form data with the uploaded video
       updateFormData("video", {
         file: file,
         url: getFullUrl(data.url),
-        width: data.metadata?.width || 0,
-        height: data.metadata?.height || 0,
+        metadata: {
+          width: data.metadata?.width || 0,
+          height: data.metadata?.height || 0,
+          duration: data.metadata?.duration || 0,
+        },
         id: data.file_id, // Add the file_id from the response
       });
 

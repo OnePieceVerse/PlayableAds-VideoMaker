@@ -66,7 +66,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       }
 
       const data = await response.json();
-      console.log("Upload response:", data);
 
       // Update form data with the uploaded image
       updateFormData("image", {

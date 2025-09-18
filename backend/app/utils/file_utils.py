@@ -232,7 +232,7 @@ def validate_file_type(file: UploadFile, file_type: FileType) -> bool:
 
 async def get_video_metadata(file_path: Path) -> Dict[str, Any]:
     """
-    获取视频元数据（简化版本）
+    获取视频元数据
     
     Args:
         file_path: 视频文件路径
@@ -241,7 +241,7 @@ async def get_video_metadata(file_path: Path) -> Dict[str, Any]:
         Dict: 视频元数据
     """
     try:
-        from backend.app.utils.file_utils import get_file_size
+        import cv2
         
         # 基本元数据
         metadata = {
@@ -250,11 +250,88 @@ async def get_video_metadata(file_path: Path) -> Dict[str, Any]:
             "filename": file_path.name
         }
         
-        # 可以在这里添加更复杂的视频元数据提取逻辑
-        # 例如使用 ffprobe 获取视频时长、分辨率等
+        # 使用OpenCV获取视频信息
+        cap = cv2.VideoCapture(str(file_path))
         
+        if cap.isOpened():
+            # 获取视频宽度和高度
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            # 获取帧率和总帧数来计算时长
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            # 计算时长（秒）
+            if fps > 0:
+                duration = frame_count / fps
+            else:
+                duration = 0
+            
+            metadata.update({
+                "width": width,
+                "height": height,
+                "fps": fps,
+                "frame_count": frame_count,
+                "duration": round(duration, 2)
+            })
+            
+            logger.info(f"Video metadata extracted: {width}x{height}, {duration:.2f}s, {fps:.2f}fps")
+        else:
+            logger.warning(f"Failed to open video file: {file_path}")
+            metadata.update({
+                "width": 0,
+                "height": 0,
+                "duration": 0,
+                "fps": 0,
+                "frame_count": 0
+            })
+        
+        cap.release()
         return metadata
         
+    except ImportError:
+        logger.warning("OpenCV not available, using basic metadata")
+        return {
+            "size": get_file_size(file_path),
+            "format": file_path.suffix.lower(),
+            "filename": file_path.name,
+            "width": 0,
+            "height": 0,
+            "duration": 0
+        }
     except Exception as e:
         logger.warning(f"Failed to get video metadata for {file_path}: {str(e)}")
-        return {"error": str(e)}       
+        return {
+            "size": get_file_size(file_path),
+            "format": file_path.suffix.lower(),
+            "filename": file_path.name,
+            "width": 0,
+            "height": 0,
+            "duration": 0,
+            "error": str(e)
+        }       
+
+def get_file_extension(project_dir: Path, file_id: str) -> str:
+    """
+    获取文件扩展名（简化版本）
+    
+    Args:
+        project_dir: 项目目录
+        file_id: 文件ID
+        
+    Returns:
+        str: 文件扩展名，默认返回 .png
+    """
+    try:
+        if project_dir and project_dir.exists():
+            # 在项目目录中查找文件
+            for file_path in project_dir.rglob("*"):
+                if file_path.is_file() and file_path.stem == file_id:
+                    return file_path.suffix
+        
+        # 默认扩展名
+        return ".png"
+        
+    except Exception:
+        return ".png"

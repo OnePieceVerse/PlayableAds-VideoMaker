@@ -152,7 +152,6 @@ const BannerUpload: React.FC<BannerUploadProps> = ({
       }
 
       const data = await response.json();
-      console.log("Banner upload response:", data);
 
       if (!data.success) {
         throw new Error(data.error || `Failed to upload ${position} banner`);

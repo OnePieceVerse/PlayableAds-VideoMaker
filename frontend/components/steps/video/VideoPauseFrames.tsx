@@ -148,33 +148,12 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       const rect = calculateVideoRect();
       if (rect) {
         setVideoRect(rect);
-        
-        // 打印视频的实际宽高
-        if (videoRef.current) {
-          console.log('PauseFrames - Video element actual dimensions:', {
-            videoWidth: videoRef.current.videoWidth,
-            videoHeight: videoRef.current.videoHeight,
-            displayWidth: rect.width,
-            displayHeight: rect.height,
-            containerWidth: containerRef.current?.getBoundingClientRect().width,
-            containerHeight: containerRef.current?.getBoundingClientRect().height
-          });
-        }
       }
     };
     
     // 视频元数据加载完成时更新
     const handleVideoMetadata = () => {
       updateVideoRect();
-      
-      // 视频元数据加载完成时打印宽高
-      if (videoRef.current) {
-        console.log('PauseFrames - Video metadata loaded:', {
-          videoWidth: videoRef.current.videoWidth,
-          videoHeight: videoRef.current.videoHeight,
-          duration: videoRef.current.duration
-        });
-      }
     };
     
     // 窗口大小变化时更新
@@ -333,15 +312,29 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
       videoRef.current.onkeydown = disableVideo;
     }
     
-    // 设置编辑状态
-    setIsEditing(true);
-    setEditingFrame(frame);
-    setPauseTime(frame.time);
-    setPosition(frame.position);
-    setScale(frame.scale || 1);
-    setButtonPosition(frame.buttonPosition || { left: 50, top: 50 });
-    setButtonScale(frame.buttonScale || 0.2);
+    // 创建新的frame（复制现有frame的属性）
+    const newFrame: PauseFrame = {
+      id: `frame_${Date.now()}`, // 生成新的ID
+      time: frame.time,
+      image: frame.image, // 复制图片
+      position: { ...frame.position }, // 复制位置
+      scale: frame.scale || 1, // 复制缩放
+      buttonImage: frame.buttonImage ? { ...frame.buttonImage } : undefined, // 复制按钮图片
+      buttonPosition: frame.buttonPosition ? { ...frame.buttonPosition } : { left: 50, top: 50 }, // 复制按钮位置
+      buttonScale: frame.buttonScale || 0.2 // 复制按钮缩放
+    };
+    
+    // 设置为新建状态（不是编辑状态）
+    setCurrentFrame(newFrame);
+    setIsEditing(false); // 重要：设置为false表示这是新建，不是编辑
+    setEditingFrame(null); // 清空编辑状态
+    setPauseTime(newFrame.time);
+    setPosition(newFrame.position);
+    setScale(newFrame.scale);
+    setButtonPosition(newFrame.buttonPosition || { left: 50, top: 50 });
+    setButtonScale(newFrame.buttonScale || 0.2);
     setShowFrameEditor(true);
+    setShowFrameSelector(false); // 关闭选择器
   };
 
   // 移除暂停帧
@@ -519,6 +512,11 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
   }, []);
 
   // 时间变化
+  // 处理时间滑块开始拖动
+  const handleTimeChangeStart = () => {
+    setIsDraggingSlider(true);
+  };
+
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
     setPauseTime(newTime);
@@ -529,6 +527,7 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
 
   // 时间变化结束
   const handleTimeChangeEnd = () => {
+    setIsDraggingSlider(false);
     if (videoRef.current) {
       videoRef.current.pause();
     }
@@ -1240,6 +1239,8 @@ const PauseFrames: React.FC<PauseFramesProps> = ({
                         videoRef.current.currentTime = newTime;
                       }
                     }}
+                    onMouseDown={handleTimeChangeStart}
+                    onTouchStart={handleTimeChangeStart}
                     onMouseUp={handleTimeChangeEnd}
                     onTouchEnd={handleTimeChangeEnd}
                     className="w-full"

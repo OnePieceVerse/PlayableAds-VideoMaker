@@ -88,7 +88,6 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     const videoHeight = formData.video?.metadata?.height || videoElement.videoHeight;
     
     if (videoWidth && videoHeight) {
-      console.log('Using video original dimensions:', videoWidth, videoHeight);
       
       // 计算视频在容器中的实际显示区域
       const containerAspect = containerRect.width / containerRect.height;
@@ -134,33 +133,12 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       const rect = calculateVideoRect();
       if (rect) {
         setVideoRect(rect);
-        
-        // 打印视频的实际宽高
-        if (videoRef.current) {
-          console.log('Video element actual dimensions:', {
-            videoWidth: videoRef.current.videoWidth,
-            videoHeight: videoRef.current.videoHeight,
-            displayWidth: rect.width,
-            displayHeight: rect.height,
-            containerWidth: containerRef.current?.getBoundingClientRect().width,
-            containerHeight: containerRef.current?.getBoundingClientRect().height
-          });
-        }
       }
     };
     
     // 视频元数据加载完成时更新
     const handleVideoMetadata = () => {
       updateVideoRect();
-      
-      // 视频元数据加载完成时打印宽高
-      if (videoRef.current) {
-        console.log('Video metadata loaded:', {
-          videoWidth: videoRef.current.videoWidth,
-          videoHeight: videoRef.current.videoHeight,
-          duration: videoRef.current.duration
-        });
-      }
     };
     
     // 窗口大小变化时更新
@@ -208,6 +186,11 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
     }
   };
 
+  // 处理时间滑块开始拖动
+  const handleTimeChangeStart = () => {
+    setIsDraggingSlider(true);
+  };
+
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
     setStartTime(newTime);
@@ -216,7 +199,6 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       // 拖动时暂停视频
       videoRef.current.pause();
     }
-    setIsDraggingSlider(true);
   };
 
   // 处理时间滑块释放
@@ -392,9 +374,9 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
       return;
     }
 
-    // 验证 End Screen 按钮的时间
-    if (buttonTypeToAdd === "endscreen" && startTime === 0) {
-      setError("End Screen button cannot start at 0s. Please set a valid time (minimum 0.1s).");
+    // 验证 End Screen 按钮的时间 - 现在允许从0开始
+    if (buttonTypeToAdd === "endscreen" && startTime < 0) {
+      setError("End Screen button start time cannot be negative.");
       return;
     }
 
@@ -449,9 +431,9 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
   const saveEdit = () => {
     if (!editingButton || !currentButton) return;
 
-    // 验证 End Screen 按钮的时间
-    if (editingButton.type === "endscreen" && startTime === 0) {
-      setError("End Screen button cannot start at 0s. Please set a valid time.");
+    // 验证 End Screen 按钮的时间 - 现在允许从0开始
+    if (editingButton.type === "endscreen" && startTime < 0) {
+      setError("End Screen button start time cannot be negative.");
       return;
     }
 
@@ -810,22 +792,24 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
                     </label>
                     <input
                       type="range"
-                      min="0.1"
+                      min="0"
                       max={formData.video.metadata?.duration || 30}
                       step="0.1"
                       value={startTime}
                       onChange={handleTimeChange}
+                      onMouseDown={handleTimeChangeStart}
+                      onTouchStart={handleTimeChangeStart}
                       onMouseUp={handleTimeChangeEnd}
                       onTouchEnd={handleTimeChangeEnd}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>0.1s</span>
+                      <span>0s</span>
                       <span className="font-medium">{startTime.toFixed(1)}s</span>
                       <span>{(formData.video.metadata?.duration || 30).toFixed(1)}s</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      End Screen button cannot start at 0s. Minimum time is 0.1s.
+                      Set the time when the End Screen button should appear.
                     </p>
                   </div>
                 )}
@@ -947,37 +931,13 @@ const CTAButtons: React.FC<CTAButtonsProps> = ({
                         </p>
                         <p className="text-xs text-gray-500 truncate">
                           {button.type === "endscreen" && button.startTime !== undefined
-                            ? button.startTime === 0
-                              ? `⚠️ Invalid time (0.0s) - Please edit to set a valid time • `
-                              : `Appears at ${button.startTime.toFixed(1)}s • `
+                            ? `Appears at ${button.startTime.toFixed(1)}s • `
                             : "Shows until End Screen button appears • "}
                           {button.position.left.toFixed(0)}% left, {button.position.top.toFixed(0)}% top
                           {button.scale ? ` • Width: ${Math.round(button.scale * 100)}%` : ''}
                         </p>
                       </div>
                       <div className="flex space-x-1">
-                        {(button.type === "endscreen" && button.startTime === 0) && (
-                          <button
-                            onClick={() => editCTAButton(button)}
-                            className="p-1 text-orange-500 hover:text-orange-700 flex-shrink-0"
-                            title="Edit button time"
-                          >
-                            <svg
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                        )}
                         <button
                           onClick={() => removeCTAButton(button.id)}
                           className="p-1 text-red-500 hover:text-red-700 flex-shrink-0"

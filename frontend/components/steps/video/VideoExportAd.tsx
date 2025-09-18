@@ -306,10 +306,6 @@ const generateAd = async () => {
         ) : null
       };
       
-      // 添加调试日志
-      console.log("Generating ad with project_id:", formData.project_id);
-      console.log("Request data:", requestData);
-      
       // 发送请求到后端
       const response = await fetch(API_PATHS.generate, {
         method: "POST",
@@ -350,10 +346,8 @@ const generateAd = async () => {
     try {
       // 检查是否是ZIP文件（多平台）
       if (result?.file_url && result.file_url.includes(".zip")) {
-        // 对于ZIP文件，使用项目ID和文件名
-        const fileName = result.file_url.split("/").pop();
-        const downloadUrl = API_PATHS.download(formData.project_id, fileName);
-        window.open(downloadUrl, "_blank");
+        // 对于ZIP文件，直接使用后端返回的完整URL
+        window.open(result.file_url, "_blank");
       } else {
         // 对于单个HTML文件，使用原来的逻辑
         // 确保使用file_url而不是preview_url

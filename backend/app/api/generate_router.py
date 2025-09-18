@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse, FileResponse
 import logging
 import traceback
+import os
 from pathlib import Path
 
 from backend.app.models.schemas import ImageVideoGenerateRequest, GenerateResponse, Platform, VideoGenerateRequest
